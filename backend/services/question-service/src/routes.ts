@@ -76,4 +76,51 @@ router.post('/', async (req, res) => {
   }
 });
 
+// INTERNAL routes for execution/submission services
+router.get('/internal/:id/testcases', async (req, res) => {
+  try {
+    const testCases = await prisma.questionTestCase.findMany({
+      where: { questionId: req.params.id, isHidden: false }
+    });
+    res.status(200).json(testCases);
+  } catch (error) {
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+router.get('/internal/:id/all-testcases', async (req, res) => {
+  try {
+    const testCases = await prisma.questionTestCase.findMany({
+      where: { questionId: req.params.id }
+    });
+    res.status(200).json(testCases);
+  } catch (error) {
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Admin Test Cases Management
+router.post('/:id/testcases', async (req, res) => {
+  if (req.headers['x-user-role'] !== 'admin') return res.status(403).json({ error: 'Forbidden' });
+  try {
+    const { input, expectedOutput, isHidden } = req.body;
+    const testCase = await prisma.questionTestCase.create({
+      data: { questionId: req.params.id, input, expectedOutput, isHidden: isHidden || false }
+    });
+    res.status(201).json(testCase);
+  } catch (error) {
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+router.delete('/testcases/:id', async (req, res) => {
+  if (req.headers['x-user-role'] !== 'admin') return res.status(403).json({ error: 'Forbidden' });
+  try {
+    await prisma.questionTestCase.delete({ where: { id: req.params.id } });
+    res.status(200).json({ message: 'Deleted' });
+  } catch (error) {
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 export default router;

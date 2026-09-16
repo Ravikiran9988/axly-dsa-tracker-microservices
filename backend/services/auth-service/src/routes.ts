@@ -1,5 +1,12 @@
 import express from 'express';
-import { signup, verifyOtp, login } from './controllers/authController';
+import { 
+  signup, verifyOtp, login, resendOtp, verifyEmail, 
+  resendVerification, forgotPassword, resetPassword, devLogin 
+} from './controllers/authController';
+import {
+  getMyProfile, updateMyProfile, getUserById, listUsers,
+  updateUserRole, deleteUser
+} from './controllers/userController';
 import jwt from 'jsonwebtoken';
 import prisma from './db';
 
@@ -20,9 +27,16 @@ export const requireAuth = (req: any, res: any, next: any) => {
   }
 };
 
+// Auth Controller Routes
 router.post('/signup', signup);
 router.post('/verify-otp', verifyOtp);
 router.post('/login', login);
+router.post('/resend-otp', resendOtp);
+router.post('/verify-email', verifyEmail);
+router.post('/resend-verification', resendVerification);
+router.post('/forgot-password', forgotPassword);
+router.post('/reset-password', resetPassword);
+router.post('/dev-login', devLogin);
 
 router.get('/verify', requireAuth, async (req: any, res: any) => {
   try {
@@ -37,5 +51,13 @@ router.get('/verify', requireAuth, async (req: any, res: any) => {
     res.status(500).json({ error: 'Internal server error' });
   }
 });
+
+// User Controller Routes
+router.get('/users/profile/me', requireAuth, getMyProfile);
+router.put('/users/profile/me', requireAuth, updateMyProfile);
+router.get('/users/:id', requireAuth, getUserById);
+router.get('/users', requireAuth, listUsers);
+router.put('/users/:id/role', requireAuth, updateUserRole);
+router.delete('/users/:id', requireAuth, deleteUser);
 
 export default router;
