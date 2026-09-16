@@ -1,0 +1,21 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Submission {
+  id            String   @id @default(uuid())
+  userId        String
+  questionId    String
+  code          String
+  language      String
+  status        String   // SUCCESS, COMPILE_ERROR, RUNTIME_ERROR, TIME_LIMIT_EXCEEDED
+  executionTime Int      // in ms
+  memory        Int?     // in bytes
+  error         String?
+  createdAt     DateTime @default(now())
+}

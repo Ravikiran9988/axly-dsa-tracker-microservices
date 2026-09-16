@@ -1,0 +1,19 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Question {
+  id           String   @id @default(uuid())
+  title        String
+  description  String
+  difficulty   String   @default("EASY")
+  examples     Json     @default("[]")
+  constraints  Json     @default("[]")
+  starterCode  Json     @default("{}")
+  createdAt    DateTime @default(now())
+}
