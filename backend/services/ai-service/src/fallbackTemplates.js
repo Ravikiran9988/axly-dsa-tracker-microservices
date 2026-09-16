@@ -57,3 +57,4 @@ module.exports = {
   getTemplate,
   FALLBACK_TEMPLATES
 };
+

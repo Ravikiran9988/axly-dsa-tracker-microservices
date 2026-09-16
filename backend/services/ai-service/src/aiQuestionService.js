@@ -704,3 +704,4 @@ module.exports = {
   validateAllSolutions,
   generateHintsForContract
 };
+

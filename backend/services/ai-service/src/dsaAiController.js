@@ -1,5 +1,5 @@
-const dsaAiService = require('../services/dsaAiService');
-const dsaAiCoachService = require('../services/dsaAiCoachService');
+const dsaAiService = require('./dsaAiService');
+const dsaAiCoachService = require('./dsaAiCoachService');
 
 async function analyzeQuestion(req, res, next) {
   try {
@@ -116,3 +116,4 @@ module.exports = {
   coach,
   verifyCode
 };
+

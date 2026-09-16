@@ -22,3 +22,4 @@ router.post('/generate', async (req, res) => {
 });
 
 export default router;
+

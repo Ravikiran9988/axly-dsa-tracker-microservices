@@ -110,3 +110,4 @@ module.exports = {
   TOPIC_NAMES: pipeline.TOPIC_NAMES,
   MAX_REGENERATION_ATTEMPTS: pipeline.MAX_REGENERATION_ATTEMPTS
 };
+

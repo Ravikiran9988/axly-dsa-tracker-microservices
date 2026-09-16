@@ -1,5 +1,5 @@
-const { generateCanonicalQuestion } = require('../services/aiQuestionGenerationPipeline');
-const auditService = require('../services/auditService');
+const { generateCanonicalQuestion } = require('./aiQuestionGenerationPipeline');
+const auditService = require('./auditService');
 
 async function generate(req, res, next) {
   try {
@@ -53,7 +53,7 @@ const {
   updateAutomationSettings,
   getAutomationLogs,
   persistRunStatus
-} = require('../services/questionBankAutomationService');
+} = require('./questionBankAutomationService');
 
 async function generateQuestionBankManual(req, res, next) {
   try {
@@ -127,3 +127,4 @@ module.exports = {
   updateSettings,
   getLogs
 };
+

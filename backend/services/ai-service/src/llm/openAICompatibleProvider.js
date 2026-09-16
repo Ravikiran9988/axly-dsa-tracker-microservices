@@ -67,3 +67,4 @@ class OpenAICompatibleProvider extends BaseLLMProvider {
 }
 
 module.exports = OpenAICompatibleProvider;
+
