@@ -1,0 +1,21 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// Ensure the vector extension exists: CREATE EXTENSION IF NOT EXISTS vector;
+model QuestionEmbedding {
+  id             String   @id @default(uuid())
+  questionId     String   @unique @map("question_id")
+  // We use Unsupported("vector(768)") to map pgvector
+  embedding      Unsupported("vector(768)")?
+  text           String
+  version        Int      @default(1)
+  lastUpdated    DateTime @default(now()) @map("last_updated") @db.Timestamptz
+
+  @@map("question_embeddings")
+}

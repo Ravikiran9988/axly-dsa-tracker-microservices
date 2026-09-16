@@ -4,6 +4,7 @@ import jwt from 'jsonwebtoken';
 import { v4 as uuidv4 } from 'uuid';
 import prisma from '../db';
 import crypto from 'crypto';
+import { RabbitMQClient } from 'shared';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your_jwt_secret_here';
 
@@ -119,6 +120,13 @@ export const verifyOtp = async (req: Request, res: Response) => {
     ]);
 
     const jwtToken = jwt.sign({ id: user.id, email: user.email, role: user.roleId }, JWT_SECRET, { expiresIn: '1d' });
+
+    await RabbitMQClient.getInstance().publish('events', 'user.registered', {
+      userId: user.id,
+      email: user.email,
+      name: user.name,
+      timestamp: new Date().toISOString()
+    });
 
     res.status(200).json({
       message: 'Account verified successfully',

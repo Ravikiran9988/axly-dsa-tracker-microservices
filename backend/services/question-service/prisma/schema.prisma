@@ -58,6 +58,7 @@ model Question {
   starterCode      Json?                @default("{}") @map("starter_code")
   driverCode       Json?                @default("{}") @map("driver_code")
   version          Int                  @default(1)
+  currentVersion   Int                  @default(1) @map("current_version")
   createdBy        String?              @map("created_by") // from users (via API/Event)
   isActive         Boolean              @default(true) @map("is_active")
   createdAt        DateTime             @default(now()) @map("created_at") @db.Timestamptz
@@ -91,6 +92,8 @@ model QuestionVersion {
   solutionCode     String?  @map("solution_code")
   changedBy        String?  @map("changed_by")
   changeSummary    String?  @map("change_summary")
+  snapshot         Json?
+  changeType       String   @default("update") @map("change_type")
   createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz
 
   @@unique([questionId, version])

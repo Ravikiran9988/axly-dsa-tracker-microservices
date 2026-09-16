@@ -108,4 +108,28 @@ export const setupConsumers = async (rabbitmqUrl: string) => {
       }
     }
   );
+
+  // Consume user.registered events
+  await mq.consume(
+    'progress_user_registered_q',
+    'events',
+    'user.registered',
+    async (msg: any, correlationId: string) => {
+      console.log(`[${correlationId}] Initializing stats for registered user ${msg.userId}`);
+      try {
+        await prisma.userStats.upsert({
+          where: { userId: msg.userId },
+          update: {},
+          create: {
+            userId: msg.userId,
+            points: 0,
+            practicePoints: 0,
+            leaderboardScore: 0
+          }
+        });
+      } catch (err) {
+        console.error(`Failed to initialize stats for ${msg.userId}:`, err);
+      }
+    }
+  );
 };

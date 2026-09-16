@@ -3,6 +3,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
 import authRoutes from './routes';
+import { RabbitMQClient } from 'shared';
 
 const app = express();
 const PORT = process.env.PORT || 5001;
@@ -20,6 +21,8 @@ app.get('/health', (req, res) => {
 
 let server: any = { close: () => {} };
 const start = async () => {
+  const mq = RabbitMQClient.getInstance();
+  await mq.connect(process.env.RABBITMQ_URL || 'amqp://localhost');
   server = app.listen(PORT, () => {
     console.log(`Auth Service listening on port ${PORT}`);
   });
@@ -28,6 +31,7 @@ const start = async () => {
 const shutdown = async () => {
   console.log('Shutting down Auth Service...');
   if (server) server.close();
+  await RabbitMQClient.getInstance().close();
   process.exit(0);
 };
 
