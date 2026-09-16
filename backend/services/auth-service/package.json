@@ -19,7 +19,8 @@
     "helmet": "^8.3.0",
     "jsonwebtoken": "^9.0.3",
     "morgan": "^1.12.1",
-    "uuid": "^14.0.2"
+    "uuid": "^14.0.2",
+    "shared": "file:../../packages/shared"
   },
   "devDependencies": {
     "@prisma/client": "^5.22.0",
