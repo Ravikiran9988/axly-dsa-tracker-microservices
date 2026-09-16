@@ -1,25 +1,20 @@
 import express from 'express';
-import { executeJavascript } from './execute';
+import { executeCode } from './execute';
 
 const router = express.Router();
 
 router.post('/', async (req, res) => {
-  const { language, code } = req.body;
+  const { language, code, testCases } = req.body;
 
   if (!language || !code) {
     return res.status(400).json({ error: 'Language and code are required' });
   }
 
-  if (language !== 'javascript' && language !== 'nodejs') {
-    return res.status(400).json({ error: 'Unsupported language. Only javascript is currently supported.' });
-  }
-
   try {
-    // 3 seconds timeout
-    const result = await executeJavascript(code, 3000);
+    const result = await executeCode(language, code, testCases || []);
     res.status(200).json(result);
-  } catch (error) {
-    res.status(500).json({ error: 'Execution service error' });
+  } catch (error: any) {
+    res.status(500).json({ error: 'Execution service error', details: error.message });
   }
 });
 

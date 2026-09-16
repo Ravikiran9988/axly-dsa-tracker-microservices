@@ -1,0 +1,411 @@
+import React, { useState, useEffect, useRef } from 'react';
+import { toast } from 'react-hot-toast';
+import { api } from '../services/api';
+import AdminQuestionPreview from '../components/AdminQuestionPreview';
+import AdminDailyChallengeModal from '../components/AdminDailyChallengeModal';
+import AdminScheduleDailyModal from '../components/AdminScheduleDailyModal';
+import {
+  Calendar, Plus, Search, CheckCircle2, AlertCircle, ExternalLink, RefreshCw, Flame, Zap, Code2, Clock,
+  ArrowRight, Sparkles, Edit2, Eye, Check, X, Layers, HelpCircle, BookOpen, CalendarDays, Clock3,
+  Trash2, Send, SlidersHorizontal, ChevronDown, Bot, Activity, ShieldCheck, CheckCircle, Play, RotateCcw, Sliders
+} from 'lucide-react';
+
+export default function AdminDailyChallenge({ onSelectProblem }) {
+  const pollRef = useRef(null);
+  const [challenges, setChallenges] = useState([]);
+  const [stats, setStats] = useState({ total: 0, draft: 0, published: 0, scheduled: 0, active: 0 });
+  const [todayChallenge, setTodayChallenge] = useState(null);
+  const [nextScheduledChallenge, setNextScheduledChallenge] = useState(null);
+  const [topics, setTopics] = useState([]);
+  const [patterns, setPatterns] = useState([]);
+
+  // Automation State
+  const [automationSettings, setAutomationSettings] = useState({
+    mode: 'ai_assist', is_enabled: true, retry_limit: 3, last_run_at: null, last_run_status: null
+  });
+  const [automationMeta, setAutomationMeta] = useState({
+    today_utc: new Date().toISOString().slice(0, 10), next_target_date: '', generation_time_utc: '00:00 UTC'
+  });
+  const [automationLogs, setAutomationLogs] = useState([]);
+  const [isRunningAutomation, setIsRunningAutomation] = useState(false);
+  const [showLogsModal, setShowLogsModal] = useState(false);
+
+  // Filters
+  const [search, setSearch] = useState('');
+  const [difficulty, setDifficulty] = useState('');
+  const [topicId, setTopicId] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
+  const [dateFilter, setDateFilter] = useState('');
+
+  // Modals & Action States
+  const [loading, setLoading] = useState(true);
+  const [actionSuccess, setActionSuccess] = useState(null);
+  const [actionError, setActionError] = useState(null);
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [createModalInitialMode, setCreateModalInitialMode] = useState('manual');
+  const [editingChallenge, setEditingChallenge] = useState(null);
+  const [schedulingChallenge, setSchedulingChallenge] = useState(null);
+  const [previewChallenge, setPreviewChallenge] = useState(null);
+  const [deletingChallenge, setDeletingChallenge] = useState(null);
+
+  useEffect(() => {
+    loadTaxonomy();
+    loadAutomationStatus().then(data => {
+      if (data?.settings?.last_run_status === 'running') {
+        startPolling();
+      }
+    });
+    return () => {
+      if (pollRef.current) clearInterval(pollRef.current);
+    };
+  }, []);
+  useEffect(() => { loadData(); }, [difficulty, topicId, statusFilter, dateFilter]);
+
+  async function loadTaxonomy() {
+    try {
+      const dcTopicsRes = await api.getDailyChallengeTopics().catch(() => null);
+      if (dcTopicsRes && dcTopicsRes.data) {
+        setTopics(dcTopicsRes.data.topics || []); setPatterns(dcTopicsRes.data.patterns || []);
+      } else {
+        const [tRes, pRes] = await Promise.all([
+          api.getTopics().catch(() => ({ data: [] })), api.getPatterns().catch(() => ({ data: [] }))
+        ]);
+        setTopics(tRes.data || []); setPatterns(pRes.data || []);
+      }
+    } catch {}
+  }
+
+  async function loadAutomationStatus() {
+    try {
+      const res = await api.getDailyChallengeAutomationStatus();
+      if (res && res.data) {
+        setAutomationSettings(res.data.settings || {});
+        setAutomationMeta({
+          today_utc: res.data.today_utc || new Date().toISOString().slice(0, 10),
+          next_target_date: res.data.next_target_date || '',
+          generation_time_utc: res.data.generation_time_utc || '00:00 UTC'
+        });
+        setAutomationLogs(res.data.recent_logs || []);
+        return res.data;
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  async function loadData() {
+    setLoading(true); setActionError(null);
+    try {
+      const res = await api.getDailyChallenges({
+        difficulty: difficulty || undefined, topic_id: topicId || undefined, status: statusFilter || undefined,
+        date: dateFilter || undefined, search: search.trim() || undefined
+      });
+      setChallenges(res.data || []);
+      if (res.stats) setStats(res.stats);
+      setTodayChallenge(res.today_challenge || null); setNextScheduledChallenge(res.next_scheduled_challenge || null);
+    } catch (err) { setActionError(err.message || 'Failed to load Daily Challenge data'); }
+    finally { setLoading(false); }
+  }
+
+  const handleSearchSubmit = (e) => { e.preventDefault(); loadData(); };
+
+  const handleTogglePublish = async (challenge) => {
+    try {
+      if (challenge.status === 'published') {
+        await api.unpublishDailyChallenge(challenge.id); setActionSuccess(`"${challenge.title}" unpublished (set to draft/scheduled)`);
+      } else {
+        await api.publishDailyChallenge(challenge.id); setActionSuccess(`"${challenge.title}" published for students!`);
+      }
+      await loadData(); setTimeout(() => setActionSuccess(null), 3000);
+    } catch (err) { setActionError(err.message || 'Failed to update publication status'); }
+  };
+
+  const handlePublishNow = async (challenge) => {
+    if (!window.confirm(`Publish "${challenge.title}" immediately as today's live Daily Challenge?`)) return;
+    try {
+      await api.publishNowDailyChallenge(challenge.id);
+      setActionSuccess(`"${challenge.title}" is now published as Today's Active Challenge!`);
+      await loadData(); setTimeout(() => setActionSuccess(null), 3000);
+    } catch (err) { setActionError(err.message || "Today's Daily Challenge is already published."); }
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!deletingChallenge) return;
+    const challengeToDelete = deletingChallenge;
+    try {
+      await api.deleteDailyChallenge(challengeToDelete.id);
+      setDeletingChallenge(null);
+      setActionSuccess(`Deleted "${challengeToDelete.title}" successfully`);
+      toast.success(`Deleted "${challengeToDelete.title}" successfully`);
+      await loadData();
+      setTimeout(() => setActionSuccess(null), 3000);
+    } catch (err) {
+      setDeletingChallenge(null);
+      setActionError(err.message || 'Failed to delete challenge');
+      toast.error(err.message || 'Failed to delete challenge');
+    }
+  };
+
+  const handleUpdateAutomationMode = async (newMode) => {
+    try {
+      await api.updateDailyChallengeAutomationSettings({ mode: newMode });
+      setAutomationSettings(prev => ({ ...prev, mode: newMode }));
+      setActionSuccess(`Automation mode updated to ${newMode.toUpperCase().replace('_', ' ')}`);
+      setTimeout(() => setActionSuccess(null), 3000);
+    } catch (err) { setActionError(err.message || 'Failed to update automation mode'); }
+  };
+
+  const handleToggleAutomationEnabled = async () => {
+    try {
+      const nextEnabled = !automationSettings.is_enabled;
+      await api.updateDailyChallengeAutomationSettings({ is_enabled: nextEnabled });
+      setAutomationSettings(prev => ({ ...prev, is_enabled: nextEnabled }));
+      setActionSuccess(`Automation ${nextEnabled ? 'enabled' : 'disabled'}`); setTimeout(() => setActionSuccess(null), 3000);
+    } catch (err) { setActionError(err.message || 'Failed to toggle automation'); }
+  };
+
+  const startPolling = (startTime = new Date()) => {
+    if (pollRef.current) clearInterval(pollRef.current);
+    setIsRunningAutomation(true);
+    const POLL_TIMEOUT_MS = 3 * 60 * 1000;
+
+    pollRef.current = setInterval(async () => {
+      await loadData();
+      const statusRes = await loadAutomationStatus();
+
+      if (statusRes && statusRes.settings) {
+        const currentStatus = statusRes.settings.last_run_status;
+        if (currentStatus && currentStatus !== 'running') {
+          clearInterval(pollRef.current);
+          pollRef.current = null;
+          setIsRunningAutomation(false);
+          if (currentStatus === 'success') {
+            const latestLog = (statusRes.recent_logs || [])[0];
+            const details = latestLog?.details || '';
+            if (details.includes('already scheduled')) {
+              setActionSuccess("Tomorrow's challenge is already scheduled. A new Auto-Fill candidate was generated as Draft for review.");
+            } else {
+              setActionSuccess("Auto-fill generated and scheduled tomorrow's Daily Challenge successfully.");
+            }
+          } else {
+            setActionError('Pipeline finished with errors. Check automation logs for details.');
+          }
+          setTimeout(() => setActionSuccess(null), 5000);
+          return;
+        }
+      }
+
+      if (new Date() - startTime > POLL_TIMEOUT_MS) {
+        clearInterval(pollRef.current);
+        pollRef.current = null;
+        setIsRunningAutomation(false);
+        setActionSuccess('Generation is taking longer than expected. Check the Automation Logs in a minute to see the result.');
+        setTimeout(() => setActionSuccess(null), 8000);
+      }
+    }, 4000);
+  };
+
+  const handleRunAutoFillNow = async () => {
+    setIsRunningAutomation(true);
+    setActionError(null);
+    try {
+      const res = await api.runDailyChallengeAutomationNow();
+      if (res.success) {
+        setActionSuccess(res.message || 'Auto-fill pipeline started in background. Waiting for completion...');
+        startPolling(new Date());
+      } else {
+        setActionError(res.error || 'Automatic challenge generation failed. Admin action required.');
+        setIsRunningAutomation(false);
+      }
+    } catch (err) { 
+      setActionError(err.message || 'Automatic challenge generation failed. Admin action required.'); 
+      setIsRunningAutomation(false);
+    }
+  };
+
+  const difficultyColors = {
+    easy: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20',
+    medium: 'text-amber-400 bg-amber-500/10 border-amber-500/20',
+    hard: 'text-rose-400 bg-rose-500/10 border-rose-500/20'
+  };
+  const statusColors = {
+    published: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20',
+    scheduled: 'text-cyan-400 bg-cyan-500/10 border-cyan-500/20',
+    draft: 'text-amber-400 bg-amber-500/10 border-amber-500/20',
+    active: 'text-purple-400 bg-purple-500/10 border-purple-500/20',
+    completed: 'text-blue-400 bg-blue-500/10 border-blue-500/20',
+    archived: 'text-theme-text3 bg-slate-500/10 border-slate-500/20',
+    expired: 'text-indigo-400 bg-indigo-500/10 border-indigo-500/20'
+  };
+
+  return (
+    <div className="space-y-6 max-w-7xl mx-auto">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-6 sm:p-7 rounded-3xl bg-theme-surface border border-theme-border backdrop-blur-xl">
+        <div className="space-y-1">
+          <div className="flex items-center gap-2 text-amber-400 font-mono text-xs font-bold uppercase tracking-wider">
+            <Flame className="w-4 h-4 fill-amber-400" /><span>DAILY CHALLENGE SYSTEM V2</span>
+          </div>
+          <h1 className="text-2xl font-black text-theme-text1 tracking-tight">Daily Challenge Portal</h1>
+          <p className="text-xs text-theme-text2 max-w-xl">
+            Automated AI generation, uniqueness validation, scheduling & competitive publication. Strictly one challenge per UTC calendar date.
+          </p>
+        </div>
+        <div className="flex items-center gap-2.5 shrink-0">
+          <button id="btn-admin-create-challenge" onClick={() => { setCreateModalInitialMode('manual'); setIsCreateModalOpen(true); }} className="btn-primary btn-sm inline-flex items-center gap-2 bg-amber-500 hover:bg-amber-400 text-black font-bold shadow-lg shadow-amber-500/20">
+            <Plus className="w-4 h-4" /><span>Create Challenge</span>
+          </button>
+        </div>
+      </div>
+
+      {actionSuccess && <div className="p-3.5 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs flex items-center justify-between animate-slide-up"><div className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" /><span>{actionSuccess}</span></div><button onClick={() => setActionSuccess(null)} className="text-emerald-400 hover:text-emerald-200"><X className="w-3.5 h-3.5" /></button></div>}
+      {actionError && <div className="p-3.5 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs flex items-center justify-between animate-slide-up"><div className="flex items-center gap-2"><AlertCircle className="w-4 h-4 text-rose-400 shrink-0" /><span>{actionError}</span></div><button onClick={() => setActionError(null)} className="text-rose-400 hover:text-rose-200"><X className="w-3.5 h-3.5" /></button></div>}
+
+      <div className="p-5 rounded-3xl bg-theme-surface border border-purple-500/30 space-y-4 backdrop-blur-xl">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-theme-border min-w-0">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="p-2 rounded-xl bg-purple-500/10 text-purple-400 border border-purple-500/20 shrink-0"><Bot className="w-4 h-4" /></div>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <h3 className="text-sm font-bold text-theme-text1 truncate">DAILY CHALLENGE AUTOMATION</h3>
+                <button
+                  onClick={handleToggleAutomationEnabled}
+                  title={automationSettings.is_enabled ? "Click to Disable AI Automation" : "Click to Enable AI Automation"}
+                  className={`px-2 py-0.5 rounded-full text-[10px] font-bold font-mono uppercase shrink-0 cursor-pointer transition-all hover:opacity-80 active:scale-95 ${automationSettings.is_enabled ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30' : 'bg-rose-500/15 text-rose-300 border border-rose-500/30'}`}
+                >
+                  {automationSettings.is_enabled ? 'Enabled' : 'Disabled'}
+                </button>
+              </div>
+              <p className="text-[11px] text-theme-text2 truncate">Runs daily at <strong>{automationMeta.generation_time_utc}</strong> to prepare tomorrow's challenge ({automationMeta.next_target_date || 'Next UTC Day'})</p>
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-2 shrink-0">
+            <button id="btn-run-autofill-now" onClick={handleRunAutoFillNow} disabled={isRunningAutomation} className="btn-primary btn-sm inline-flex items-center gap-1.5 bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs shrink-0">{isRunningAutomation ? <><RefreshCw className="w-3.5 h-3.5 animate-spin" /><span>Running Pipeline...</span></> : <><Play className="w-3.5 h-3.5 fill-current" /><span>Run Auto-Fill Now</span></>}</button>
+            <button id="btn-admin-automation-logs" onClick={() => setShowLogsModal(true)} className="btn-secondary btn-sm text-xs text-theme-text2 hover:text-theme-text1 shrink-0">Logs ({automationLogs.length})</button>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 text-xs">
+          <div className="p-3.5 rounded-2xl bg-theme-surface border border-theme-border space-y-1.5">
+            <div className="text-[10px] font-mono text-theme-text2 uppercase">Automation Mode</div>
+            <div className="flex items-center gap-1 pt-1">
+              <button onClick={() => handleUpdateAutomationMode('ai_assist')} className={`flex-1 py-1.5 px-2 rounded-xl text-[11px] font-bold transition-all ${automationSettings.mode === 'ai_assist' ? 'bg-purple-600 text-white shadow-md shadow-purple-600/30' : 'bg-theme-surface text-theme-text2 hover:text-theme-text1'}`}>AI Assist</button>
+              <button onClick={() => handleUpdateAutomationMode('auto_fill')} className={`flex-1 py-1.5 px-2 rounded-xl text-[11px] font-bold transition-all ${automationSettings.mode === 'auto_fill' ? 'bg-purple-600 text-white shadow-md shadow-purple-600/30' : 'bg-theme-surface text-theme-text2 hover:text-theme-text1'}`}>Auto Fill</button>
+            </div>
+          </div>
+
+          <div className="p-3.5 rounded-2xl bg-theme-surface border border-theme-border space-y-1 font-mono">
+            <div className="flex items-center justify-between">
+              <div className="text-[10px] text-theme-text2 uppercase">Timing & Target Date</div>
+              <button
+                id="btn-toggle-dc-power"
+                onClick={handleToggleAutomationEnabled}
+                className="text-xs text-purple-400 hover:text-purple-300 font-sans font-medium transition-colors cursor-pointer"
+              >
+                Toggle Power
+              </button>
+            </div>
+            <div className="text-theme-text1 font-bold pt-0.5">12:30 AM IST &rarr; Next Day</div>
+            <div className="text-[11px] text-cyan-400">Target: {automationMeta.next_target_date || 'Next Day (IST)'}</div>
+          </div>
+
+          <div className="p-3.5 rounded-2xl bg-theme-surface border border-theme-border space-y-1 font-mono">
+            <div className="text-[10px] text-theme-text2 uppercase">Last Execution Status</div>
+            <div className="flex items-center gap-2 pt-0.5">
+              <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${automationSettings.last_run_status === 'success' ? 'text-emerald-400 bg-emerald-500/10 border border-emerald-500/20' : automationSettings.last_run_status === 'failed' ? 'text-rose-400 bg-rose-500/10 border border-rose-500/20' : 'text-theme-text2 bg-theme-surface2'}`}>
+                {automationSettings.last_run_status || 'Never Run'}
+              </span>
+              <span className="text-[10px] text-theme-text3">{automationSettings.last_run_at ? new Date(automationSettings.last_run_at).toLocaleTimeString() : ''}</span>
+            </div>
+            <div className="text-[10px] text-theme-text3">Retry limit: {automationSettings.retry_limit || 3} attempts</div>
+          </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
+        {[
+          ['Total Challenges', stats.total, 'text-theme-text1', 'border-theme-border'],
+          ['Published', stats.published, 'text-emerald-400', 'border-emerald-500/20'],
+          ['Scheduled', stats.scheduled, 'text-cyan-400', 'border-cyan-500/20'],
+          ['Drafts', stats.draft, 'text-amber-400', 'border-amber-500/20']
+        ].map(([label, value, text, border]) => <div key={label} className={`p-4 rounded-2xl bg-theme-surface border ${border}`}><div className={`text-[11px] ${text} font-mono uppercase`}>{label}</div><div className={`text-2xl font-black ${text} font-mono mt-1`}>{value}</div></div>)}
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="p-5 rounded-2xl bg-theme-surface border border-amber-500/30 space-y-3"><div className="flex items-center justify-between"><div className="flex items-center gap-2"><Flame className="w-4 h-4 text-amber-400 fill-amber-400" /><span className="text-xs font-bold text-amber-400 font-mono uppercase">TODAY'S ACTIVE CHALLENGE</span></div><span className="text-[11px] text-theme-text2 font-mono">{automationMeta.today_utc} (UTC)</span></div>{loading ? <div className="py-4 text-center text-theme-text3 animate-pulse text-xs">Loading today's challenge...</div> : todayChallenge ? <div className="space-y-2"><div className="flex items-center justify-between"><h4 className="text-sm font-bold text-theme-text1 hover:text-amber-300 transition-colors cursor-pointer" onClick={(e) => { e.stopPropagation(); setPreviewChallenge(todayChallenge); }}>{todayChallenge.title}</h4><span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase border ${difficultyColors[todayChallenge.difficulty?.toLowerCase()] || ''}`}>{todayChallenge.difficulty}</span></div><div className="flex items-center gap-3 text-xs text-theme-text2 font-mono"><span>{todayChallenge.topic_name || 'General DSA'}</span><span>&middot;</span><span className="text-amber-400">+{todayChallenge.points || 100} pts</span><span>&middot;</span><span className="text-theme-text2">{todayChallenge.created_via === 'ai' ? '✨ AI' : '✍ Manual'}</span></div></div> : <div className="py-3 text-xs text-theme-text3 italic flex items-center gap-2"><AlertCircle className="w-3.5 h-3.5 text-amber-500/60" /><span>No challenge scheduled for today.</span></div>}</div>
+        <div className="p-5 rounded-2xl bg-theme-surface border border-cyan-500/30 space-y-3"><div className="flex items-center justify-between"><div className="flex items-center gap-2"><CalendarDays className="w-4 h-4 text-cyan-400" /><span className="text-xs font-bold text-cyan-400 font-mono uppercase">NEXT SCHEDULED CHALLENGE</span></div>{nextScheduledChallenge?.scheduled_date && <span className="text-[11px] text-cyan-300 font-mono">{nextScheduledChallenge.scheduled_date}</span>}</div>{loading ? <div className="py-4 text-center text-theme-text3 animate-pulse text-xs">Loading upcoming challenges...</div> : nextScheduledChallenge ? <div className="space-y-2"><div className="flex items-center justify-between"><h4 className="text-sm font-bold text-theme-text1 hover:text-cyan-300 transition-colors cursor-pointer" onClick={(e) => { e.stopPropagation(); setPreviewChallenge(nextScheduledChallenge); }}>{nextScheduledChallenge.title}</h4><span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase border ${difficultyColors[nextScheduledChallenge.difficulty?.toLowerCase()] || ''}`}>{nextScheduledChallenge.difficulty}</span></div><div className="flex items-center gap-3 text-xs text-theme-text2 font-mono"><span>{nextScheduledChallenge.topic_name || 'General DSA'}</span><span>&middot;</span><span className="text-cyan-400">+{nextScheduledChallenge.points || 100} pts</span></div></div> : <div className="py-3 text-xs text-theme-text3 italic flex items-center gap-2"><Calendar className="w-3.5 h-3.5 text-cyan-500/60" /><span>No upcoming challenges scheduled.</span></div>}</div>
+      </div>
+
+      <div className="p-4 rounded-2xl bg-theme-surface border border-theme-border flex flex-wrap items-center justify-between gap-3"><form onSubmit={handleSearchSubmit} className="flex items-center gap-2 flex-1 min-w-[240px]"><div className="relative flex-1"><Search className="w-3.5 h-3.5 text-theme-text2 absolute left-3 top-1/2 -translate-y-1/2" /><input type="text" placeholder="Search challenges by title or topic..." value={search} onChange={(e) => setSearch(e.target.value)} className="input-field pl-8 w-full text-xs" /></div><button type="submit" className="btn-secondary btn-sm text-xs">Search</button></form><div className="flex flex-wrap items-center gap-2 text-xs"><select value={difficulty} onChange={(e) => setDifficulty(e.target.value)} className="input-field py-1.5 text-xs font-mono"><option value="">All Difficulties</option><option value="easy">Easy</option><option value="medium">Medium</option><option value="hard">Hard</option></select><select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="input-field py-1.5 text-xs font-mono"><option value="">All Statuses</option><option value="draft">Draft</option><option value="scheduled">Scheduled</option><option value="published">Published</option><option value="expired">Expired (Practice)</option></select><button onClick={() => { setSearch(''); setDifficulty(''); setTopicId(''); setStatusFilter(''); setDateFilter(''); loadData(); loadAutomationStatus(); }} className="p-2 rounded-xl text-theme-text2 hover:text-theme-text1 hover:bg-theme-surface2 transition-colors" title="Refresh data & Reset filters"><RefreshCw className="w-3.5 h-3.5" /></button></div></div>
+
+      <div className="card overflow-hidden border border-theme-border"><div className="px-6 py-4 border-b border-theme-border flex items-center justify-between bg-theme-surface"><div><h3 className="text-sm font-bold text-theme-text1">Daily Challenge Repository</h3><p className="text-[11px] text-theme-text2">All authored competitive challenges, scheduled dates, and creation sources</p></div><span className="text-xs text-theme-text2 font-mono">{challenges.length} Problem{challenges.length !== 1 ? 's' : ''}</span></div><> <div className="hidden md:block overflow-x-auto"><table className="w-full text-left text-xs"><thead><tr className="border-b border-theme-border bg-theme-surface text-theme-text2 font-mono text-[11px] uppercase"><th className="py-3.5 px-4 font-semibold">Title</th><th className="py-3.5 px-3 font-semibold">Difficulty</th><th className="py-3.5 px-3 font-semibold">Topic</th><th className="py-3.5 px-3 font-semibold">Pattern</th><th className="py-3.5 px-3 font-semibold">Points</th><th className="py-3.5 px-3 font-semibold">Status</th><th className="py-3.5 px-3 font-semibold">Scheduled Date</th><th className="py-3.5 px-3 font-semibold">Created Via</th><th className="py-3.5 px-4 font-semibold text-right">Actions</th></tr></thead><tbody className="divide-y divide-theme-border font-mono">{loading ? Array.from({ length: 5 }).map((_, idx) => <tr key={idx} className="animate-pulse"><td colSpan={9} className="py-4 px-4 text-center text-theme-text3">Loading daily challenges...</td></tr>) : challenges.length === 0 ? <tr><td colSpan={9} className="py-8 text-center text-theme-text3 font-sans">No Daily Challenges found.</td></tr> : challenges.map((c) => <tr key={c.id} className="hover:bg-theme-surface transition-colors"><td className="py-3 px-4"><div className="font-sans font-bold text-theme-text1 hover:text-amber-400 transition-colors cursor-pointer" onClick={(e) => { e.stopPropagation(); setPreviewChallenge(c); }}>{c.title}</div><div className="text-[10px] text-theme-text3 font-mono truncate max-w-xs">{c.slug || c.id}</div></td><td className="py-3 px-3"><span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase border ${difficultyColors[c.difficulty?.toLowerCase()] || ''}`}>{c.difficulty}</span></td><td className="py-3 px-3 text-theme-text2 font-sans">{c.topic_name || 'Arrays'}</td><td className="py-3 px-3 text-theme-text2 text-[11px] font-sans">{c.pattern_name || c.pattern || '—'}</td><td className="py-3 px-3 font-bold text-amber-400">+{c.points || 100}</td><td className="py-3 px-3"><span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase border ${statusColors[c.status?.toLowerCase()] || ''}`}>{c.status}</span></td><td className="py-3 px-3 text-theme-text2">{c.scheduled_date ? <span className="text-cyan-400 flex items-center gap-1"><Calendar className="w-3 h-3" /> {c.scheduled_date}</span> : <span className="text-slate-600">—</span>}</td><td className="py-3 px-3">{c.created_via === 'ai' ? <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-500/15 text-purple-300 border border-purple-500/30 inline-flex items-center gap-1"><Sparkles className="w-2.5 h-2.5" /> AI</span> : <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-theme-surface2 text-theme-text2 border border-theme-border inline-flex items-center gap-1">✍ Manual</span>}</td><td className="py-3 px-4 text-right"><div className="flex items-center justify-end gap-1.5"><button onClick={(e) => { e.stopPropagation(); setPreviewChallenge(c); }} className="p-1.5 rounded-lg text-theme-text2 hover:text-theme-text1 hover:bg-theme-surface2 transition-colors cursor-pointer" title="View Details"><Eye className="w-3.5 h-3.5" /></button>{onSelectProblem && <button onClick={(e) => { e.stopPropagation(); onSelectProblem(c.question_id || c.id); }} className="p-1.5 rounded-lg text-theme-text2 hover:text-emerald-400 hover:bg-theme-surface2 transition-colors cursor-pointer" title="Solve Challenge"><Play className="w-3.5 h-3.5" /></button>}<button onClick={(e) => { e.stopPropagation(); setEditingChallenge(c); }} className="p-1.5 rounded-lg text-theme-text2 hover:text-amber-400 hover:bg-theme-surface2 transition-colors cursor-pointer" title="Edit Challenge"><Edit2 className="w-3.5 h-3.5" /></button><button onClick={(e) => { e.stopPropagation(); setSchedulingChallenge(c); }} className="p-1.5 rounded-lg text-theme-text2 hover:text-cyan-400 hover:bg-theme-surface2 transition-colors cursor-pointer" title="Schedule Date"><Calendar className="w-3.5 h-3.5" /></button><button onClick={(e) => { e.stopPropagation(); handleTogglePublish(c); }} className={`p-1.5 rounded-lg transition-colors cursor-pointer ${c.status === 'published' ? 'text-emerald-400 hover:text-amber-400 hover:bg-theme-surface2' : 'text-theme-text2 hover:text-emerald-400 hover:bg-theme-surface2'}`} title={c.status === 'published' ? 'Unpublish' : 'Publish'}>{c.status === 'published' ? <Check className="w-3.5 h-3.5" /> : <Send className="w-3.5 h-3.5" />}</button>{c.status !== 'published' && <button onClick={(e) => { e.stopPropagation(); handlePublishNow(c); }} className="p-1.5 rounded-lg text-amber-400 hover:text-amber-300 hover:bg-amber-500/10 transition-colors cursor-pointer" title="Publish Now (Make Today's Active Challenge)"><Zap className="w-3.5 h-3.5" /></button>}<button onClick={(e) => { e.stopPropagation(); setDeletingChallenge(c); }} className="p-1.5 rounded-lg text-theme-text3 hover:text-rose-400 hover:bg-rose-500/10 transition-colors cursor-pointer" title="Delete Challenge"><Trash2 className="w-3.5 h-3.5" /></button></div></td></tr>)}</tbody></table></div>
+<div className="md:hidden flex flex-col divide-y divide-theme-border text-xs">
+  {loading ? (
+    <div className="p-4 text-center text-theme-text3">Loading daily challenges...</div>
+  ) : challenges.length === 0 ? (
+    <div className="p-4 text-center text-theme-text3">No Daily Challenges found.</div>
+  ) : (
+    challenges.map((c) => (
+      <div key={c.id} className="p-4 flex flex-col gap-3">
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex-1 min-w-0">
+            <div className="font-bold text-theme-text1 hover:text-amber-400 transition-colors cursor-pointer truncate" onClick={(e) => { e.stopPropagation(); setPreviewChallenge(c); }}>{c.title}</div>
+            <div className="text-[10px] text-theme-text3 font-mono truncate">{c.slug || c.id}</div>
+          </div>
+          <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase border shrink-0 ${difficultyColors[c.difficulty?.toLowerCase()] || ''}`}>{c.difficulty}</span>
+        </div>
+        <div className="flex items-center gap-2 text-[10px] text-theme-text2">
+          <span className={`px-2 py-0.5 rounded font-bold uppercase border ${statusColors[c.status?.toLowerCase()] || ''}`}>{c.status}</span>
+          <span>&middot;</span>
+          <span className="truncate">{c.topic_name || 'Arrays'}</span>
+          <span className="font-bold text-amber-400">+{c.points || 100}pts</span>
+        </div>
+        <div className="flex items-center justify-between pt-2 border-t border-theme-border mt-1">
+          <div className="flex items-center gap-1.5">
+            {c.scheduled_date ? <span className="text-cyan-400 flex items-center gap-1 text-[10px]"><Calendar className="w-3 h-3" /> {c.scheduled_date}</span> : <span className="text-slate-600 text-[10px]">—</span>}
+          </div>
+          <div className="flex items-center gap-1.5">
+            {c.created_via === 'ai' ? <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-500/15 text-purple-300 border border-purple-500/30 inline-flex items-center gap-1"><Sparkles className="w-2.5 h-2.5" /> AI</span> : <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-theme-surface2 text-theme-text2 border border-theme-border inline-flex items-center gap-1">✍ Manual</span>}
+          </div>
+        </div>
+        <div className="flex flex-wrap items-center justify-end gap-1.5 pt-2 border-t border-theme-border">
+          <button onClick={(e) => { e.stopPropagation(); setPreviewChallenge(c); }} className="p-1.5 rounded-lg text-theme-text2 hover:text-theme-text1 hover:bg-theme-surface2 transition-colors cursor-pointer" title="View Details"><Eye className="w-3.5 h-3.5" /></button>{onSelectProblem && <button onClick={(e) => { e.stopPropagation(); onSelectProblem(c.question_id || c.id); }} className="p-1.5 rounded-lg text-theme-text2 hover:text-emerald-400 hover:bg-theme-surface2 transition-colors cursor-pointer" title="Solve Challenge"><Play className="w-3.5 h-3.5" /></button>}
+          <button onClick={(e) => { e.stopPropagation(); setEditingChallenge(c); }} className="p-1.5 rounded-lg text-theme-text2 hover:text-amber-400 hover:bg-theme-surface2 transition-colors cursor-pointer" title="Edit Challenge"><Edit2 className="w-3.5 h-3.5" /></button>
+          <button onClick={(e) => { e.stopPropagation(); setSchedulingChallenge(c); }} className="p-1.5 rounded-lg text-theme-text2 hover:text-cyan-400 hover:bg-theme-surface2 transition-colors cursor-pointer" title="Schedule Date"><Calendar className="w-3.5 h-3.5" /></button>
+          <button onClick={(e) => { e.stopPropagation(); handleTogglePublish(c); }} className={`p-1.5 rounded-lg transition-colors cursor-pointer ${c.status === 'published' ? 'text-emerald-400 hover:text-amber-400 hover:bg-theme-surface2' : 'text-theme-text2 hover:text-emerald-400 hover:bg-theme-surface2'}`} title={c.status === 'published' ? 'Unpublish' : 'Publish'}>{c.status === 'published' ? <Check className="w-3.5 h-3.5" /> : <Send className="w-3.5 h-3.5" />}</button>
+          {c.status !== 'published' && <button onClick={(e) => { e.stopPropagation(); handlePublishNow(c); }} className="p-1.5 rounded-lg text-amber-400 hover:text-amber-300 hover:bg-amber-500/10 transition-colors cursor-pointer" title="Publish Now (Make Today's Active Challenge)"><Zap className="w-3.5 h-3.5" /></button>}
+          <button onClick={(e) => { e.stopPropagation(); setDeletingChallenge(c); }} className="p-1.5 rounded-lg text-theme-text3 hover:text-rose-400 hover:bg-rose-500/10 transition-colors cursor-pointer" title="Delete Challenge"><Trash2 className="w-3.5 h-3.5" /></button>
+        </div>
+      </div>
+    ))
+  )}
+</div> </> </div>
+
+      <AdminDailyChallengeModal isOpen={isCreateModalOpen || Boolean(editingChallenge)} onClose={() => { setIsCreateModalOpen(false); setEditingChallenge(null); }} challengeToEdit={editingChallenge} initialMode={createModalInitialMode} topics={topics} patterns={patterns} onSaved={loadData} />
+      {schedulingChallenge && <AdminScheduleDailyModal isOpen={Boolean(schedulingChallenge)} onClose={() => setSchedulingChallenge(null)} challenge={schedulingChallenge} onScheduled={loadData} />}
+      {previewChallenge && <AdminQuestionPreview itemId={previewChallenge.id} type="daily" onClose={() => setPreviewChallenge(null)} />}
+      {showLogsModal && <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-900/90 dark:bg-black/90 backdrop-blur-md animate-fade-in"><div className="bg-theme-surface w-full h-full max-w-full max-h-full overflow-y-auto custom-scrollbar p-6 sm:p-10 space-y-6"><div className="flex items-center justify-between pb-4 border-b border-theme-border"><div className="flex items-center gap-3"><Bot className="w-6 h-6 text-purple-400" /><h3 className="text-xl font-bold text-theme-text1">Daily Challenge Automation Logs</h3></div><button onClick={() => setShowLogsModal(false)} className="p-2 rounded-full hover:bg-theme-surface2 text-theme-text2 hover:text-theme-text1 transition-colors"><X className="w-6 h-6" /></button></div><div className="space-y-3 max-w-5xl mx-auto pt-4">{automationLogs.length === 0 ? <div className="py-12 text-center text-theme-text3 text-sm">No automation run logs found.</div> : automationLogs.map((log) => <div key={log.id} className="p-4 rounded-xl bg-theme-surface border border-theme-border text-sm flex items-start sm:items-center justify-between flex-col sm:flex-row gap-4"><div className="space-y-2"><div className="flex items-center flex-wrap gap-2"><span className={`px-2.5 py-1 rounded-md text-xs font-bold uppercase ${log.status === 'success' ? 'text-emerald-400 bg-emerald-500/10 border border-emerald-500/20' : log.status === 'failed' ? 'text-rose-400 bg-rose-500/10 border border-rose-500/20' : 'text-theme-text2 bg-theme-surface2'}`}>{log.status}</span><span className="font-mono text-cyan-400 font-bold">Target: {log.target_date || log.target_slot || 'Manual Run'}</span><span className="text-theme-text3 px-2">|</span><span className="text-theme-text3">Mode: {log.mode || '—'}</span>{log.attempt_count > 0 && <span className="text-theme-text2 px-2">| Attempts: {log.attempt_count}</span>}</div><p className="text-sm text-theme-text2 max-w-3xl leading-relaxed">{log.status === 'failed' ? (log.details || log.failure_category || 'Failed: Unknown reason') : log.details}</p></div><div className="text-xs text-theme-text3 font-mono shrink-0 bg-theme-surface2 px-3 py-1.5 rounded-lg border border-theme-border">{new Date(log.created_at.includes('Z') ? log.created_at : log.created_at.replace(' ', 'T') + 'Z').toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', dateStyle: 'medium', timeStyle: 'short' })}</div></div>)}</div></div></div>}
+      {deletingChallenge && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-900/60 dark:bg-black/80 backdrop-blur-md animate-fade-in">
+          <div className="bg-theme-surface border border-rose-500/30 rounded-3xl w-full max-w-md p-6 space-y-4 shadow-2xl">
+            <div className="flex items-center gap-3 text-rose-400">
+              <div className="p-2.5 rounded-2xl bg-rose-500/10 border border-rose-500/20">
+                <Trash2 className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-theme-text1">Delete Daily Challenge?</h3>
+                <p className="text-[11px] text-theme-text2">This action will permanently delete the problem and its test cases.</p>
+              </div>
+            </div>
+            <div className="p-3.5 rounded-xl bg-theme-surface border border-theme-border text-xs">
+              <strong className="text-theme-text1">{deletingChallenge.title}</strong>
+              <div className="text-theme-text3 text-[11px] mt-0.5">{deletingChallenge.id} &middot; {deletingChallenge.difficulty}</div>
+            </div>
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <button onClick={() => setDeletingChallenge(null)} className="btn-secondary btn-sm text-xs cursor-pointer">Cancel</button>
+              <button onClick={handleDeleteConfirm} className="btn-primary btn-sm text-xs bg-rose-600 hover:bg-rose-500 text-white font-bold cursor-pointer">Confirm Delete</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

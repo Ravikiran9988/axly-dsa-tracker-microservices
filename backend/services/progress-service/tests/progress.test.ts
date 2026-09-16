@@ -1,3 +1,4 @@
+jest.mock('shared', () => ({ RabbitMQClient: { getInstance: jest.fn().mockReturnValue({ publish: jest.fn(), consume: jest.fn() }) } }));
 import request from 'supertest';
 import { app } from '../src/index';
 import prisma from '../src/db';
@@ -7,7 +8,17 @@ import redisClient from '../src/redis';
 jest.mock('../src/db', () => ({
   __esModule: true,
   default: {
-    userProgress: {
+    practiceUserProgress: {
+      deleteMany: jest.fn(),
+      upsert: jest.fn(),
+      findUnique: jest.fn()
+    },
+    pointsLedger: {
+      deleteMany: jest.fn(),
+      create: jest.fn(),
+      findFirst: jest.fn()
+    },
+    userStats: {
       deleteMany: jest.fn(),
       upsert: jest.fn(),
       findUnique: jest.fn()
@@ -41,7 +52,9 @@ jest.mock('shared', () => ({
 
 describe('Progress Service', () => {
   beforeAll(async () => {
-    await prisma.userProgress.deleteMany({});
+    await prisma.practiceUserProgress.deleteMany({});
+    await prisma.pointsLedger.deleteMany({});
+    await prisma.userStats.deleteMany({});
   });
 
   afterAll(async () => {

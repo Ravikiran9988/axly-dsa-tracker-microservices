@@ -9,15 +9,21 @@ router.get('/today', async (req, res) => {
     const now = new Date();
     const normalizedDate = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
 
-    const challenge = await prisma.dailyChallenge.findUnique({
-      where: { date: normalizedDate }
+    const dailyQuestion = await prisma.dailyQuestion.findUnique({
+      where: { date: normalizedDate },
+      include: { challenge: true }
     });
 
-    if (!challenge) {
+    if (!dailyQuestion) {
       return res.status(404).json({ error: 'No daily challenge published yet for today.' });
     }
 
-    res.status(200).json(challenge);
+    res.status(200).json({
+      id: dailyQuestion.id,
+      date: dailyQuestion.date,
+      questionId: dailyQuestion.questionId,
+      challenge: dailyQuestion.challenge
+    });
   } catch (error) {
     res.status(500).json({ error: 'Internal server error' });
   }
@@ -26,8 +32,8 @@ router.get('/today', async (req, res) => {
 // Manual trigger for testing or admin overrides
 router.post('/trigger', async (req, res) => {
   try {
-    const challenge = await generateAndPublishDailyChallenge(new Date());
-    res.status(200).json(challenge);
+    const dailyQuestion = await generateAndPublishDailyChallenge(new Date());
+    res.status(200).json(dailyQuestion);
   } catch (error: any) {
     res.status(500).json({ error: 'Failed to trigger automation', details: error.message });
   }

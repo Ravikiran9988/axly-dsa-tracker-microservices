@@ -20,7 +20,7 @@ app.get('/health', (req, res) => {
   res.json({ status: 'Daily Challenge Service OK' });
 });
 
-let server: any;
+let server: any = { close: () => {} };
 const start = async () => {
   const mq = RabbitMQClient.getInstance();
   await mq.connect(process.env.RABBITMQ_URL || 'amqp://localhost');

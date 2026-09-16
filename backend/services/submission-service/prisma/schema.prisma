@@ -8,14 +8,40 @@ generator client {
 }
 
 model Submission {
-  id            String   @id @default(uuid())
-  userId        String
-  questionId    String
-  code          String
-  language      String
-  status        String   // SUCCESS, COMPILE_ERROR, RUNTIME_ERROR, TIME_LIMIT_EXCEEDED
-  executionTime Int      // in ms
-  memory        Int?     // in bytes
-  error         String?
-  createdAt     DateTime @default(now())
+  id                   String    @id @default(uuid())
+  userId               String    @map("user_id") // Soft link to Auth Service User
+  questionId           String    @map("question_id") // Soft link to Question Service Question
+  status               String    @default("attempted") // 'not_started', 'attempted', 'submitted', 'solved', 'completed', 'approved', 'rejected', 'failed'
+  attemptCount         Int       @default(1) @map("attempt_count")
+  startedAt            DateTime? @map("started_at") @db.Timestamptz
+  attemptedAt          DateTime  @default(now()) @map("attempted_at") @db.Timestamptz
+  solvedAt             DateTime? @map("solved_at") @db.Timestamptz
+  solveDurationSeconds Int?      @default(0) @map("solve_duration_seconds")
+  testScore            Decimal?  @default(0) @db.Decimal(5, 2) @map("test_score")
+  timeScore            Decimal?  @default(0) @db.Decimal(5, 2) @map("time_score")
+  attemptScore         Decimal?  @default(0) @db.Decimal(5, 2) @map("attempt_score")
+  finalScore           Decimal?  @default(0) @db.Decimal(5, 2) @map("final_score")
+  createdAt            DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt            DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@unique([userId, questionId])
+  @@index([status])
+  @@map("submissions")
+}
+
+model CodeSubmissionLog {
+  id              String   @id @default(uuid())
+  userId          String   @map("user_id")
+  questionId      String   @map("question_id")
+  code            String
+  language        String
+  status          String
+  passedTests     Int      @default(0) @map("passed_tests")
+  totalTests      Int      @default(0) @map("total_tests")
+  executionTimeMs Decimal? @default(0) @db.Decimal(10, 2) @map("execution_time_ms")
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  @@index([userId])
+  @@index([questionId])
+  @@map("code_submissions_log")
 }

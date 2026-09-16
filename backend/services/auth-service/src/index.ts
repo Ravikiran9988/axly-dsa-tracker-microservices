@@ -18,7 +18,7 @@ app.get('/health', (req, res) => {
   res.json({ status: 'Auth Service OK' });
 });
 
-let server: any;
+let server: any = { close: () => {} };
 const start = async () => {
   server = app.listen(PORT, () => {
     console.log(`Auth Service listening on port ${PORT}`);

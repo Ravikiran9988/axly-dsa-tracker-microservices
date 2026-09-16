@@ -7,13 +7,105 @@ generator client {
   provider = "prisma-client-js"
 }
 
+model Topic {
+  id          String     @id @default(uuid())
+  name        String     @unique
+  category    String?    @default("Core")
+  description String?
+  orderIndex  Int?       @default(0) @map("order_index")
+  isActive    Boolean    @default(true) @map("is_active")
+  patterns    Pattern[]
+  questions   Question[]
+
+  @@map("topics")
+}
+
+model Pattern {
+  id          String     @id @default(uuid())
+  name        String     @unique
+  topicId     String?    @map("topic_id")
+  topic       Topic?     @relation(fields: [topicId], references: [id], onDelete: SetNull)
+  description String?
+  orderIndex  Int?       @default(0) @map("order_index")
+  questions   Question[]
+
+  @@index([topicId])
+  @@map("patterns")
+}
+
 model Question {
-  id           String   @id @default(uuid())
-  title        String
-  description  String
-  difficulty   String   @default("EASY")
-  examples     Json     @default("[]")
-  constraints  Json     @default("[]")
-  starterCode  Json     @default("{}")
-  createdAt    DateTime @default(now())
+  id               String               @id @default(uuid())
+  title            String
+  slug             String               @unique
+  difficulty       String               // 'easy', 'medium', 'hard'
+  points           Int                  @default(10)
+  estimatedTime    Int?                 @default(30) @map("estimated_time")
+  topicId          String?              @map("topic_id")
+  topic            Topic?               @relation(fields: [topicId], references: [id], onDelete: SetNull)
+  patternId        String?              @map("pattern_id")
+  pattern          Pattern?             @relation(fields: [patternId], references: [id], onDelete: SetNull)
+  description      String
+  problemStatement String?              @map("problem_statement")
+  constraints      String?
+  inputFormat      String?              @map("input_format")
+  outputFormat     String?              @map("output_format")
+  exampleInput     String?              @map("example_input")
+  exampleOutput    String?              @map("example_output")
+  hints            Json?                @default("[]")
+  tags             Json?                @default("[]")
+  solutionApproach String?              @map("solution_approach")
+  solutionCode     String?              @map("solution_code")
+  starterCode      Json?                @default("{}") @map("starter_code")
+  driverCode       Json?                @default("{}") @map("driver_code")
+  version          Int                  @default(1)
+  createdBy        String?              @map("created_by") // from users (via API/Event)
+  isActive         Boolean              @default(true) @map("is_active")
+  createdAt        DateTime             @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt        DateTime             @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  testCases        QuestionTestCase[]
+  versions         QuestionVersion[]
+
+  @@index([slug])
+  @@index([topicId])
+  @@index([patternId])
+  @@index([difficulty])
+  @@map("questions")
+}
+
+model QuestionVersion {
+  id               String   @id @default(uuid())
+  questionId       String   @map("question_id")
+  question         Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  version          Int
+  title            String
+  description      String
+  problemStatement String?  @map("problem_statement")
+  constraints      String?
+  inputFormat      String?  @map("input_format")
+  outputFormat     String?  @map("output_format")
+  exampleInput     String?  @map("example_input")
+  exampleOutput    String?  @map("example_output")
+  hints            Json?    @default("[]")
+  solutionApproach String?  @map("solution_approach")
+  solutionCode     String?  @map("solution_code")
+  changedBy        String?  @map("changed_by")
+  changeSummary    String?  @map("change_summary")
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  @@unique([questionId, version])
+  @@map("question_versions")
+}
+
+model QuestionTestCase {
+  id             String   @id @default(uuid())
+  questionId     String   @map("question_id")
+  question       Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  input          String
+  expectedOutput String   @map("expected_output")
+  isHidden       Boolean  @default(false) @map("is_hidden")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  @@index([questionId])
+  @@map("question_test_cases")
 }

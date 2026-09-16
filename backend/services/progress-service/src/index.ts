@@ -21,7 +21,7 @@ app.get('/health', (req, res) => {
   res.json({ status: 'Progress Service OK' });
 });
 
-let server: any;
+let server: any = { close: () => {} };
 
 const start = async () => {
   await connectRedis();

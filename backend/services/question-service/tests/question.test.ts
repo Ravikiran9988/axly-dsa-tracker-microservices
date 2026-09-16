@@ -1,26 +1,34 @@
+jest.mock('shared', () => ({ RabbitMQClient: { getInstance: jest.fn().mockReturnValue({ publish: jest.fn(), consume: jest.fn() }) } }));
 import request from 'supertest';
-import app, { server } from '../src/index';
+import { app, server } from '../src/index';
 import prisma from '../src/db';
 
-describe('Question Service APIs', () => {
-  beforeAll(async () => {
-    await prisma.question.deleteMany({});
-  });
+jest.mock('../src/db', () => ({
+  __esModule: true,
+  default: {
+    question: {
+      deleteMany: jest.fn(),
+      create: jest.fn().mockResolvedValue({ id: '1', title: 'Two Sum' }),
+      findMany: jest.fn().mockResolvedValue([{ id: '1', title: 'Two Sum' }])
+    },
+    $disconnect: jest.fn(),
+  }
+}));
 
+describe('Question Service APIs', () => {
   afterAll(async () => {
-    await prisma.$disconnect();
     server.close();
   });
 
   it('should allow admin to create a question', async () => {
     const res = await request(app)
       .post('/')
-      .set('x-user-role', 'ADMIN')
+      .set('x-user-role', 'admin')
       .send({
         title: 'Two Sum',
+        slug: 'two-sum',
         description: 'Find two numbers that add up to target',
-        difficulty: 'EASY',
-        examples: [{ input: '[2,7,11,15], target=9', output: '[0,1]' }],
+        difficulty: 'easy',
         constraints: ['2 <= nums.length <= 10^4'],
       });
 
@@ -32,8 +40,8 @@ describe('Question Service APIs', () => {
   it('should deny non-admin from creating a question', async () => {
     const res = await request(app)
       .post('/')
-      .set('x-user-role', 'USER')
-      .send({ title: 'Hacked' });
+      .set('x-user-role', 'user')
+      .send({ title: 'Hacked', description: 'hack' });
 
     expect(res.status).toBe(403);
   });

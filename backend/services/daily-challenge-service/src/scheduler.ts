@@ -7,11 +7,9 @@ const AI_SERVICE_URL = process.env.AI_SERVICE_URL || 'http://localhost:5005';
 const QUESTION_SERVICE_URL = process.env.QUESTION_SERVICE_URL || 'http://localhost:5002';
 
 export const generateAndPublishDailyChallenge = async (date: Date, correlationId: string = 'system') => {
-  // Normalize date to 00:00:00 UTC for idempotency check
   const normalizedDate = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
 
-  // 1. Idempotency Check: Did we already generate one for today?
-  const existing = await prisma.dailyChallenge.findUnique({
+  const existing = await prisma.dailyQuestion.findUnique({
     where: { date: normalizedDate }
   });
 
@@ -21,48 +19,62 @@ export const generateAndPublishDailyChallenge = async (date: Date, correlationId
   }
 
   try {
-    // 2. Call AI Service to generate a question
-    const aiRes = await axios.post(`${AI_SERVICE_URL}/generate`, {
-      difficulty: "MEDIUM",
-      topic: "Arrays", 
-      pattern: "Two Pointers"
-    });
-
-    const generatedQuestion = aiRes.data;
-
-    // 3. Persist the Canonical Question to Question Service
-    const qRes = await axios.post(`${QUESTION_SERVICE_URL}/`, generatedQuestion, {
-      headers: { 'x-user-role': 'ADMIN', 'x-correlation-id': correlationId }
-    });
-
-    const canonicalQuestionId = qRes.data.id;
-
-    // 4. Save local reference in Daily Challenge DB
-    const challenge = await prisma.dailyChallenge.create({
+    // Note: AI integration placeholder; would normally generate a full DailyChallengeProblem payload
+    const slug = `daily-challenge-${normalizedDate.toISOString().split('T')[0]}`;
+    
+    // Create the Daily Challenge Problem locally
+    const challenge = await prisma.dailyChallengeProblem.create({
       data: {
-        date: normalizedDate,
-        questionId: canonicalQuestionId,
-        status: 'PUBLISHED'
+        title: `Daily Challenge ${normalizedDate.toISOString().split('T')[0]}`,
+        slug,
+        description: 'Auto-generated challenge description',
+        difficulty: 'medium',
+        createdVia: 'ai',
+        status: 'published',
+        scheduledDate: normalizedDate
       }
     });
 
-    // 5. Emit Event
+    // Create a canonical question in Question Service if it doesn't exist
+    let canonicalQuestionId: string | null = null;
+    try {
+      const qRes = await axios.post(`${QUESTION_SERVICE_URL}/`, {
+        title: challenge.title,
+        slug: challenge.slug,
+        description: challenge.description,
+        difficulty: challenge.difficulty
+      }, {
+        headers: { 'x-user-role': 'admin', 'x-correlation-id': correlationId }
+      });
+      canonicalQuestionId = qRes.data.id;
+    } catch (e: any) {
+      console.warn("Could not create canonical question, proceeding with null", e.message);
+    }
+
+    const dailyQuestion = await prisma.dailyQuestion.create({
+      data: {
+        date: normalizedDate,
+        challengeId: challenge.id,
+        questionId: canonicalQuestionId
+      }
+    });
+
     const mq = RabbitMQClient.getInstance();
     await mq.publish('events', 'challenge.published', {
+      dailyQuestionId: dailyQuestion.id,
       challengeId: challenge.id,
-      questionId: challenge.questionId,
-      date: challenge.date.toISOString()
+      questionId: canonicalQuestionId,
+      date: dailyQuestion.date.toISOString()
     }, correlationId);
 
-    console.log(`Successfully generated and published Daily Challenge ${challenge.id}`);
-    return challenge;
+    console.log(`Successfully generated and published Daily Challenge ${dailyQuestion.id}`);
+    return dailyQuestion;
   } catch (error) {
     console.error("Failed to generate daily challenge:", error);
     throw error;
   }
 };
 
-// Setup cron to run at midnight UTC everyday
 export const startScheduler = () => {
   cron.schedule('0 0 * * *', async () => {
     console.log('Running daily challenge automation job...');
