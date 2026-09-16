@@ -1,33 +1,13 @@
-jest.mock('shared', () => ({ RabbitMQClient: { getInstance: jest.fn().mockReturnValue({ publish: jest.fn(), consume: jest.fn() }) } }));
+
 import request from 'supertest';
 import { app, server } from '../src/index';
 import prisma from '../src/db';
 import axios from 'axios';
 
-jest.mock('axios');
-const mockedAxios = axios as jest.Mocked<typeof axios>;
 
-jest.mock('../src/db', () => ({
-  __esModule: true,
-  default: {
-    dailyQuestion: {
-      deleteMany: jest.fn(),
-      findFirst: jest.fn()
-        .mockResolvedValueOnce(null) // first time null (not triggered yet)
-        .mockResolvedValueOnce({ id: '1', questionId: "canonical-q-123", scheduledDate: new Date() }) // second time exists
-        .mockResolvedValue({ id: '1', questionId: "canonical-q-123", scheduledDate: new Date() }), // third time for /today
-      create: jest.fn().mockResolvedValue({ id: '1', questionId: "canonical-q-123", scheduledDate: new Date() }),
-    },
-    dailyChallengeProblem: {
-      deleteMany: jest.fn(),
-      create: jest.fn(),
-    },
-    dailyChallengeTestCase: {
-      createMany: jest.fn(),
-    },
-    $disconnect: jest.fn(),
-  }
-}));
+
+
+
 
 describe('Daily Challenge Service', () => {
   afterAll(async () => {
@@ -70,3 +50,4 @@ describe('Daily Challenge Service', () => {
     expect(res.body.questionId).toBe("canonical-q-123");
   });
 });
+

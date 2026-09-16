@@ -1,19 +1,9 @@
-jest.mock('shared', () => ({ RabbitMQClient: { getInstance: jest.fn().mockReturnValue({ publish: jest.fn(), consume: jest.fn() }) } }));
+
 import request from 'supertest';
 import { app, server } from '../src/index';
 import prisma from '../src/db';
 
-jest.mock('../src/db', () => ({
-  __esModule: true,
-  default: {
-    user: {
-      deleteMany: jest.fn(),
-      findUnique: jest.fn().mockResolvedValue(null),
-      create: jest.fn().mockResolvedValue({ id: '123', email: 'test@example.com' }),
-    },
-    $disconnect: jest.fn(),
-  }
-}));
+
 
 describe('Auth Service APIs', () => {
   afterAll(async () => {
@@ -33,13 +23,7 @@ describe('Auth Service APIs', () => {
   });
 
   it('should reject login for unverified user', async () => {
-    (prisma.user.findUnique as jest.Mock).mockResolvedValueOnce({ 
-      id: '123', 
-      email: 'test@example.com', 
-      isVerified: false, 
-      passwordHash: 'hash' 
-    });
-    
+
     const res = await request(app).post('/login').send({
       email: 'test@example.com',
       password: 'password123',
@@ -48,3 +32,4 @@ describe('Auth Service APIs', () => {
     expect(res.status).toBe(403);
   });
 });
+

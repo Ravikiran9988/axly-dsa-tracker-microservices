@@ -8,10 +8,13 @@
     "dev": "ts-node src/index.ts"
   },
   "dependencies": {
+    "@google/genai": "^2.22.0",
+    "@pinecone-database/pinecone": "^9.0.0",
     "cors": "^2.8.5",
     "express": "^4.19.2",
     "helmet": "^7.1.0",
-    "morgan": "^1.10.0"
+    "morgan": "^1.10.0",
+    "pg": "^8.23.0"
   },
   "devDependencies": {
     "@types/cors": "^2.8.17",

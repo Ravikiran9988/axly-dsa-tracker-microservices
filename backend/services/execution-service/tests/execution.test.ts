@@ -1,4 +1,4 @@
-jest.mock('shared', () => ({ RabbitMQClient: { getInstance: jest.fn().mockReturnValue({ publish: jest.fn(), consume: jest.fn() }) } }));
+
 import request from 'supertest';
 import { app, server } from '../src/index';
 
@@ -48,3 +48,4 @@ describe('Execution Service APIs', () => {
     expect(res.body.error).toContain('Execution service error');
   });
 });
+

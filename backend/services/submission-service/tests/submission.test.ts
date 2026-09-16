@@ -1,28 +1,13 @@
-jest.mock('shared', () => ({ RabbitMQClient: { getInstance: jest.fn().mockReturnValue({ publish: jest.fn(), consume: jest.fn() }) } }));
+
 import request from 'supertest';
 import { app, server } from '../src/index';
 import prisma from '../src/db';
 import axios from 'axios';
 
-jest.mock('axios');
-const mockedAxios = axios as jest.Mocked<typeof axios>;
 
-jest.mock('../src/db', () => ({
-  __esModule: true,
-  default: {
-    submission: {
-      deleteMany: jest.fn(),
-      upsert: jest.fn().mockResolvedValue({ id: '1', status: 'solved', userId: 'user123', questionId: 'q1' }),
-      findMany: jest.fn().mockResolvedValue([{ id: '1', userId: 'user123' }])
-    },
-    codeSubmissionLog: {
-      deleteMany: jest.fn(),
-      create: jest.fn().mockResolvedValue({ id: 'log1', status: 'success' }),
-      findMany: jest.fn().mockResolvedValue([{ id: 'log1', userId: 'user123', questionId: 'q1' }])
-    },
-    $disconnect: jest.fn(),
-  }
-}));
+
+
+
 
 describe('Submission Service APIs', () => {
   afterAll(async () => {
@@ -72,3 +57,4 @@ describe('Submission Service APIs', () => {
     expect(res.body.data.length).toBeGreaterThan(0);
   });
 });
+

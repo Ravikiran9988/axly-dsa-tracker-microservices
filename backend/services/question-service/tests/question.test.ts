@@ -1,19 +1,9 @@
-jest.mock('shared', () => ({ RabbitMQClient: { getInstance: jest.fn().mockReturnValue({ publish: jest.fn(), consume: jest.fn() }) } }));
+
 import request from 'supertest';
 import { app, server } from '../src/index';
 import prisma from '../src/db';
 
-jest.mock('../src/db', () => ({
-  __esModule: true,
-  default: {
-    question: {
-      deleteMany: jest.fn(),
-      create: jest.fn().mockResolvedValue({ id: '1', title: 'Two Sum' }),
-      findMany: jest.fn().mockResolvedValue([{ id: '1', title: 'Two Sum' }])
-    },
-    $disconnect: jest.fn(),
-  }
-}));
+
 
 describe('Question Service APIs', () => {
   afterAll(async () => {
@@ -53,3 +43,4 @@ describe('Question Service APIs', () => {
     expect(res.body.length).toBeGreaterThan(0);
   });
 });
+
