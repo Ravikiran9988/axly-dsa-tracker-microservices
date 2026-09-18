@@ -38,7 +38,7 @@ router.post('/forgot-password', forgotPassword);
 router.post('/reset-password', resetPassword);
 router.post('/dev-login', devLogin);
 
-router.get('/verify', requireAuth, async (req: any, res: any) => {
+const verifySession = async (req: any, res: any) => {
   try {
     const user = await prisma.user.findUnique({
       where: { id: req.user.id },
@@ -50,7 +50,10 @@ router.get('/verify', requireAuth, async (req: any, res: any) => {
   } catch (error) {
     res.status(500).json({ error: 'Internal server error' });
   }
-});
+};
+
+router.get('/verify', requireAuth, verifySession);
+router.post('/verify', requireAuth, verifySession);
 
 // User Controller Routes
 router.get('/users/profile/me', requireAuth, getMyProfile);

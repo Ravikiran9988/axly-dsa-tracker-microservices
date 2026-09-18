@@ -64,7 +64,7 @@ function ensureExecutableDriver(sourceCode: string, language: string): string {
   
   if (lang.includes('javascript') || lang.includes('typescript') || lang === 'js' || lang === 'ts' || lang === 'node') {
     if (!sourceCode.includes('console.log') && !sourceCode.includes('process.stdout')) {
-      return `${sourceCode}\n\nconst _fs = require('fs');\ntry {\n  const _raw = _fs.readFileSync(0, 'utf-8').trim();\n  if (_raw) {\n    const _tokens = _raw.split(/\\s+/).map((x: any) => isNaN(Number(x)) ? x : Number(x));\n    const _fn = typeof solve === 'function' ? solve : typeof solution === 'function' ? solution : null;\n    if (_fn) { const _res = _fn(..._tokens); if (_res !== undefined) console.log(_res); }\n  }\n} catch (_) {}\n`;
+      return `${sourceCode}\n\nconst _fs = require('fs');\ntry {\n  const _raw = _fs.readFileSync(0, 'utf-8').trim();\n  if (_raw) {\n    const _tokens = _raw.split(/\\s+/).map((x) => isNaN(Number(x)) ? x : Number(x));\n    const _fn = typeof solve === 'function' ? solve : typeof solution === 'function' ? solution : null;\n    if (_fn) { const _res = _fn(..._tokens); if (_res !== undefined) console.log(_res); }\n  }\n} catch (_) {}\n`;
     }
   } else if (lang.includes('python') || lang === 'py') {
     if (!sourceCode.includes('print(') && !sourceCode.includes('sys.stdout')) {

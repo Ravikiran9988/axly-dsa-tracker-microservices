@@ -29,3 +29,4 @@ if (allPassed) {
     console.error('\n❌ Validation failed.');
     process.exit(1);
 }
+

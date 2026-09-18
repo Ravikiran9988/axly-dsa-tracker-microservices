@@ -1,6 +1,6 @@
 const { getRepository } = require('../db/repositoryFactory');
-const { createHash } = require('crypto');
-const { v4: uuidv4 } = require('uuid');
+const { createHash, randomUUID } = require('crypto');
+const uuidv4 = randomUUID;
 const { defaultProvider, normalizeVector, EMBEDDING_MODEL } = require('./embeddingService');
 
 /**

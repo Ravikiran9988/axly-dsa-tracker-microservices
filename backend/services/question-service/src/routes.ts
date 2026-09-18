@@ -1,80 +1,42 @@
 import express from 'express';
+import {
+  getQuestions,
+  getQuestionById,
+  createQuestion,
+  updateQuestion,
+  deleteQuestion,
+  getTopics,
+  getQuestionVersions,
+  getQuestionVersion,
+  restoreQuestionVersion
+} from './controllers/questionController';
 import prisma from './db';
-import { RabbitMQClient } from 'shared';
 
 const router = express.Router();
 
-router.get('/', async (req, res) => {
-  try {
-    const questions = await prisma.question.findMany({
-      select: { id: true, title: true, difficulty: true, slug: true },
-    });
-    res.status(200).json(questions);
-  } catch (error) {
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
-router.get('/:idOrSlug', async (req, res) => {
-  try {
-    const { idOrSlug } = req.params;
-    let question = await prisma.question.findUnique({
-      where: { id: idOrSlug },
-      include: { testCases: true }
-    });
-    if (!question) {
-      question = await prisma.question.findUnique({
-        where: { slug: idOrSlug },
-        include: { testCases: true }
-      });
-    }
-
-    if (!question) {
-      return res.status(404).json({ error: 'Question not found' });
-    }
-    res.status(200).json(question);
-  } catch (error) {
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
-router.post('/', async (req, res) => {
-  // Assume gateway handles auth, we check role from header
-  const userRole = req.headers['x-user-role'];
-  const correlationId = req.headers['x-correlation-id'] as string || 'system';
-
-  if (userRole !== 'admin') {
+const requireAdmin = (req: any, res: any, next: any) => {
+  if (req.headers['x-user-role'] !== 'admin') {
     return res.status(403).json({ error: 'Forbidden' });
   }
+  next();
+};
 
-  try {
-    const { title, slug, description, difficulty, constraints, starterCode, inputFormat, outputFormat } = req.body;
-    const generatedSlug = slug || title.toLowerCase().replace(/[^a-z0-9]+/g, '-');
-    const question = await prisma.question.create({
-      data: {
-        title,
-        slug: generatedSlug,
-        description,
-        difficulty: difficulty || 'easy',
-        constraints: JSON.stringify(constraints || []),
-        starterCode: starterCode || {},
-        inputFormat,
-        outputFormat
-      },
-    });
+// Public Routes
+router.get('/', getQuestions);
+router.get('/topics', getTopics);
+router.get('/:id', getQuestionById);
 
-    const mq = RabbitMQClient.getInstance();
-    await mq.publish('events', 'question.created', {
-      questionId: question.id,
-      title: question.title
-    }, correlationId);
+// Admin Routes
+router.post('/', requireAdmin, createQuestion);
+router.put('/:id', requireAdmin, updateQuestion);
+router.patch('/:id', requireAdmin, updateQuestion);
+router.delete('/:id', requireAdmin, deleteQuestion);
 
-    res.status(201).json(question);
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
+// Versioning Routes (Admin)
+router.get('/:id/versions', requireAdmin, getQuestionVersions);
+router.get('/:id/versions/:version', requireAdmin, getQuestionVersion);
+router.post('/:id/versions/:version/restore', requireAdmin, restoreQuestionVersion);
+
 
 // INTERNAL routes for execution/submission services
 router.get('/internal/:id/testcases', async (req, res) => {
@@ -100,8 +62,7 @@ router.get('/internal/:id/all-testcases', async (req, res) => {
 });
 
 // Admin Test Cases Management
-router.post('/:id/testcases', async (req, res) => {
-  if (req.headers['x-user-role'] !== 'admin') return res.status(403).json({ error: 'Forbidden' });
+router.post('/:id/testcases', requireAdmin, async (req, res) => {
   try {
     const { input, expectedOutput, isHidden } = req.body;
     const testCase = await prisma.questionTestCase.create({
@@ -113,8 +74,7 @@ router.post('/:id/testcases', async (req, res) => {
   }
 });
 
-router.delete('/testcases/:id', async (req, res) => {
-  if (req.headers['x-user-role'] !== 'admin') return res.status(403).json({ error: 'Forbidden' });
+router.delete('/testcases/:id', requireAdmin, async (req, res) => {
   try {
     await prisma.questionTestCase.delete({ where: { id: req.params.id } });
     res.status(200).json({ message: 'Deleted' });
