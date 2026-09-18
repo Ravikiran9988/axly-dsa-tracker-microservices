@@ -1,0 +1,329 @@
+version: '3.8'
+
+services:
+  # ─── Infrastructure ───────────────────────────────────────────────
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: axly-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-axly_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-axly_password}
+      POSTGRES_DB: ${POSTGRES_DB:-axly_main}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./infrastructure/docker/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-axly_user}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: axly-rabbitmq
+    restart: unless-stopped
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-guest}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASS:-guest}
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "check_port_connectivity"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: axly-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ─── Backend Services ─────────────────────────────────────────────
+  auth-service:
+    build:
+      context: .
+      dockerfile: backend/services/Dockerfile
+      args:
+        SERVICE_NAME: auth-service
+    container_name: axly-auth-service
+    restart: unless-stopped
+    ports:
+      - "5001:5001"
+    environment:
+      PORT: 5001
+      NODE_ENV: production
+      DATABASE_URL: postgresql://${POSTGRES_USER:-axly_user}:${POSTGRES_PASSWORD:-axly_password}@postgres:5432/auth_service_db
+      JWT_SECRET: ${JWT_SECRET:-your_jwt_secret_here}
+      RABBITMQ_URL: amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASS:-guest}@rabbitmq:5672
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+  question-service:
+    build:
+      context: .
+      dockerfile: backend/services/Dockerfile
+      args:
+        SERVICE_NAME: question-service
+    container_name: axly-question-service
+    restart: unless-stopped
+    ports:
+      - "5002:5002"
+    environment:
+      PORT: 5002
+      NODE_ENV: production
+      DATABASE_URL: postgresql://${POSTGRES_USER:-axly_user}:${POSTGRES_PASSWORD:-axly_password}@postgres:5432/question_service_db
+      RABBITMQ_URL: amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASS:-guest}@rabbitmq:5672
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+  submission-service:
+    build:
+      context: .
+      dockerfile: backend/services/Dockerfile
+      args:
+        SERVICE_NAME: submission-service
+    container_name: axly-submission-service
+    restart: unless-stopped
+    ports:
+      - "5003:5003"
+    environment:
+      PORT: 5003
+      NODE_ENV: production
+      DATABASE_URL: postgresql://${POSTGRES_USER:-axly_user}:${POSTGRES_PASSWORD:-axly_password}@postgres:5432/submission_service_db
+      RABBITMQ_URL: amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASS:-guest}@rabbitmq:5672
+      EXECUTION_SERVICE_URL: http://execution-service:5004
+      QUESTION_SERVICE_URL: http://question-service:5002
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      execution-service:
+        condition: service_started
+      question-service:
+        condition: service_started
+
+  execution-service:
+    build:
+      context: .
+      dockerfile: backend/services/Dockerfile
+      args:
+        SERVICE_NAME: execution-service
+    container_name: axly-execution-service
+    restart: unless-stopped
+    ports:
+      - "5004:5004"
+    environment:
+      PORT: 5004
+      NODE_ENV: production
+    security_opt:
+      - no-new-privileges:true
+
+  ai-service:
+    build:
+      context: .
+      dockerfile: backend/services/Dockerfile
+      args:
+        SERVICE_NAME: ai-service
+    container_name: axly-ai-service
+    restart: unless-stopped
+    ports:
+      - "5005:5005"
+    environment:
+      PORT: 5005
+      NODE_ENV: production
+      DATABASE_URL: postgresql://${POSTGRES_USER:-axly_user}:${POSTGRES_PASSWORD:-axly_password}@postgres:5432/ai_service_db
+      SUBMISSION_SERVICE_URL: http://submission-service:5003
+      QUESTION_SERVICE_URL: http://question-service:5002
+      LLM_API_KEY: ${LLM_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      LLM_BASE_URL: ${LLM_BASE_URL:-https://api.openai.com/v1}
+      LLM_MODEL: ${LLM_MODEL:-gpt-4}
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      GROQ_API_KEY_1: ${GROQ_API_KEY_1:-}
+      GROQ_API_KEY_2: ${GROQ_API_KEY_2:-}
+      GROQ_API_KEY_3: ${GROQ_API_KEY_3:-}
+      GROQ_MODEL: ${GROQ_MODEL:-openai/gpt-oss-120b}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_API_KEY_1: ${GEMINI_API_KEY_1:-}
+      GEMINI_API_KEY_2: ${GEMINI_API_KEY_2:-}
+      GOOGLE_AI_API_KEY: ${GOOGLE_AI_API_KEY:-}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-1.5-flash}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  daily-challenge-service:
+    build:
+      context: .
+      dockerfile: backend/services/Dockerfile
+      args:
+        SERVICE_NAME: daily-challenge-service
+    container_name: axly-daily-challenge-service
+    restart: unless-stopped
+    ports:
+      - "5006:5006"
+    environment:
+      PORT: 5006
+      NODE_ENV: production
+      DATABASE_URL: postgresql://${POSTGRES_USER:-axly_user}:${POSTGRES_PASSWORD:-axly_password}@postgres:5432/daily_challenge_service_db
+      RABBITMQ_URL: amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASS:-guest}@rabbitmq:5672
+      AI_SERVICE_URL: http://ai-service:5005
+      QUESTION_SERVICE_URL: http://question-service:5002
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      ai-service:
+        condition: service_started
+      question-service:
+        condition: service_started
+
+  progress-service:
+    build:
+      context: .
+      dockerfile: backend/services/Dockerfile
+      args:
+        SERVICE_NAME: progress-service
+    container_name: axly-progress-service
+    restart: unless-stopped
+    ports:
+      - "5007:5007"
+    environment:
+      PORT: 5007
+      NODE_ENV: production
+      DATABASE_URL: postgresql://${POSTGRES_USER:-axly_user}:${POSTGRES_PASSWORD:-axly_password}@postgres:5432/progress_service_db
+      RABBITMQ_URL: amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASS:-guest}@rabbitmq:5672
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  notification-service:
+    build:
+      context: .
+      dockerfile: backend/services/Dockerfile
+      args:
+        SERVICE_NAME: notification-service
+    container_name: axly-notification-service
+    restart: unless-stopped
+    ports:
+      - "5008:5008"
+    environment:
+      PORT: 5008
+      NODE_ENV: production
+      DATABASE_URL: postgresql://${POSTGRES_USER:-axly_user}:${POSTGRES_PASSWORD:-axly_password}@postgres:5432/notification_service_db
+      RABBITMQ_URL: amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASS:-guest}@rabbitmq:5672
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  cohort-service:
+    build:
+      context: .
+      dockerfile: backend/services/Dockerfile
+      args:
+        SERVICE_NAME: cohort-service
+    container_name: axly-cohort-service
+    restart: unless-stopped
+    ports:
+      - "5010:5010"
+    environment:
+      PORT: 5010
+      NODE_ENV: production
+      DATABASE_URL: postgresql://${POSTGRES_USER:-axly_user}:${POSTGRES_PASSWORD:-axly_password}@postgres:5432/cohort_service_db
+      RABBITMQ_URL: amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASS:-guest}@rabbitmq:5672
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # ─── API Gateway ──────────────────────────────────────────────────
+  gateway:
+    build:
+      context: .
+      dockerfile: backend/gateway/Dockerfile
+    container_name: axly-gateway
+    restart: unless-stopped
+    ports:
+      - "4000:4000"
+    environment:
+      PORT: 4000
+      NODE_ENV: production
+      JWT_SECRET: ${JWT_SECRET:-your_jwt_secret_here}
+      AUTH_SERVICE_URL: http://auth-service:5001
+      QUESTION_SERVICE_URL: http://question-service:5002
+      SUBMISSION_SERVICE_URL: http://submission-service:5003
+      EXECUTION_SERVICE_URL: http://execution-service:5004
+      AI_SERVICE_URL: http://ai-service:5005
+      CHALLENGE_SERVICE_URL: http://daily-challenge-service:5006
+      PROGRESS_SERVICE_URL: http://progress-service:5007
+      NOTIFICATION_SERVICE_URL: http://notification-service:5008
+      COHORT_SERVICE_URL: http://cohort-service:5010
+    depends_on:
+      - auth-service
+      - question-service
+      - submission-service
+      - execution-service
+      - ai-service
+      - daily-challenge-service
+      - progress-service
+      - notification-service
+      - cohort-service
+
+  # ─── Frontend ─────────────────────────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: http://localhost:4000/api
+        VITE_SUPABASE_URL: ${VITE_SUPABASE_URL:-}
+        VITE_SUPABASE_ANON_KEY: ${VITE_SUPABASE_ANON_KEY:-}
+    container_name: axly-frontend
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    depends_on:
+      - gateway
+
+volumes:
+  postgres_data:
+  rabbitmq_data:
+  redis_data:
