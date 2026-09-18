@@ -1,6 +1,6 @@
 import { toast } from 'react-hot-toast';
 
-const API_BASE = (import.meta.env.VITE_API_URL || '/api/v1').replace(/\/$/, '');
+const API_BASE = (import.meta.env.VITE_API_URL || '/api').replace(/\/$/, '');
 
 function getAuthHeader() {
   const token = localStorage.getItem('axly_auth_token') || localStorage.getItem('axly_token');

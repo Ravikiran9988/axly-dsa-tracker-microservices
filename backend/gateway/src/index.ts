@@ -46,6 +46,8 @@ const EXECUTION_SERVICE_URL = process.env.EXECUTION_SERVICE_URL || 'http://local
 const AI_SERVICE_URL = process.env.AI_SERVICE_URL || 'http://localhost:5005';
 const CHALLENGE_SERVICE_URL = process.env.CHALLENGE_SERVICE_URL || 'http://localhost:5006';
 const PROGRESS_SERVICE_URL = process.env.PROGRESS_SERVICE_URL || 'http://localhost:5007';
+const NOTIFICATION_SERVICE_URL = process.env.NOTIFICATION_SERVICE_URL || 'http://localhost:5008';
+const COHORT_SERVICE_URL = process.env.COHORT_SERVICE_URL || 'http://localhost:5009';
 
 const authMiddleware = [authenticateJWT, (req: any, res: any, next: any) => {
   if (req.user) {
@@ -58,7 +60,6 @@ const authMiddleware = [authenticateJWT, (req: any, res: any, next: any) => {
 // Auth & Users (Auth Service)
 app.use('/api/auth', createProxyMiddleware({ target: AUTH_SERVICE_URL, changeOrigin: true }));
 app.use('/api/users', authMiddleware, createProxyMiddleware({ target: AUTH_SERVICE_URL, changeOrigin: true }));
-app.use('/api/cohorts', authMiddleware, createProxyMiddleware({ target: AUTH_SERVICE_URL, changeOrigin: true }));
 app.use('/api/audit', authMiddleware, createProxyMiddleware({ target: AUTH_SERVICE_URL, changeOrigin: true }));
 
 // Questions & Content (Question Service)
@@ -83,10 +84,15 @@ app.use('/api/recommendations', authMiddleware, createProxyMiddleware({ target: 
 app.use('/api/daily-challenges', createProxyMiddleware({ target: CHALLENGE_SERVICE_URL, changeOrigin: true }));
 app.use('/api/challenges', createProxyMiddleware({ target: CHALLENGE_SERVICE_URL, changeOrigin: true }));
 
-// Progress, Analytics & Notifications (Progress Service)
+// Progress, Analytics (Progress Service)
 app.use('/api/progress', authMiddleware, createProxyMiddleware({ target: PROGRESS_SERVICE_URL, changeOrigin: true }));
 app.use('/api/analytics', authMiddleware, createProxyMiddleware({ target: PROGRESS_SERVICE_URL, changeOrigin: true }));
-app.use('/api/notifications', authMiddleware, createProxyMiddleware({ target: PROGRESS_SERVICE_URL, changeOrigin: true }));
+
+// Notifications (Notification Service)
+app.use('/api/notifications', authMiddleware, createProxyMiddleware({ target: NOTIFICATION_SERVICE_URL, changeOrigin: true }));
+
+// Cohorts (Cohort Service)
+app.use('/api/cohorts', authMiddleware, createProxyMiddleware({ target: COHORT_SERVICE_URL, changeOrigin: true }));
 
 app.use(errorHandlerMiddleware);
 

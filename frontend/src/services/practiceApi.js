@@ -1,4 +1,4 @@
-const BASE = `${(import.meta.env.VITE_API_URL || '/api/v1').replace(/\/$/, '')}/practice`;
+const BASE = `${(import.meta.env.VITE_API_URL || '/api').replace(/\/$/, '')}/practice`;
 
 function getHeaders() {
   const token = localStorage.getItem('axly_auth_token') || localStorage.getItem('axly_token');

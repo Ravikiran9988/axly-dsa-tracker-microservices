@@ -2,7 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
-import progressRoutes from './routes';
+import cohortRoutes from './routes';
 import { connectRedis } from './redis';
 import { setupConsumers } from './consumer';
 import { RabbitMQClient } from 'shared';
@@ -17,7 +17,7 @@ app.use(morgan('dev'));
 app.use(express.json());
 app.use(correlationIdMiddleware);
 
-app.use('/', progressRoutes);
+app.use('/', cohortRoutes);
 
 app.get('/health', (req, res) => {
   res.json({ status: 'Progress Service OK' });

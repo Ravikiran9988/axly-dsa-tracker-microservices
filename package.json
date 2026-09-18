@@ -11,7 +11,10 @@
   "scripts": {
     "build": "npm run build --workspaces --if-present",
     "test": "npm run test --workspaces --if-present",
-    "start": "npm run start --workspaces --if-present"
+    "start": "npm run start --workspaces --if-present",
+    "dev:all": "concurrently \"npm run dev --workspace=gateway\" \"npm run dev --workspace=auth-service\" \"npm run dev --workspace=question-service\" \"npm run dev --workspace=submission-service\" \"npm run dev --workspace=execution-service\" \"npm run dev --workspace=ai-service\" \"npm run dev --workspace=daily-challenge-service\" \"npm run dev --workspace=progress-service\" \"npm run dev --workspace=notification-service\" \"npm run dev --workspace=cohort-service\" \"npm run dev --workspace=axly-dsa-tracker-frontend\""
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
   }
 }
-

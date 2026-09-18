@@ -53,4 +53,12 @@ router.get('/progress/admin/stats', requireAdmin, async (req, res) => {
   res.json({ success: true, data: {} });
 });
 
+router.get('/progress/stats', requireAdmin, async (req, res) => {
+  res.json({ success: true, data: {} });
+});
+
+router.get('/analytics/admin/stats', requireAdmin, async (req, res) => {
+  res.json({ success: true, data: {} });
+});
+
 export default router;

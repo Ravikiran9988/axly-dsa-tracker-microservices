@@ -2,14 +2,14 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
-import progressRoutes from './routes';
+import notificationRoutes from './routes';
 import { connectRedis } from './redis';
 import { setupConsumers } from './consumer';
 import { RabbitMQClient } from 'shared';
 import { correlationIdMiddleware, errorHandlerMiddleware } from 'shared';
 
 const app = express();
-const PORT = process.env.PORT || 5007;
+const PORT = process.env.PORT || 5008; // 5008 for notification
 
 app.use(helmet());
 app.use(cors());
@@ -17,7 +17,7 @@ app.use(morgan('dev'));
 app.use(express.json());
 app.use(correlationIdMiddleware);
 
-app.use('/', progressRoutes);
+app.use('/', notificationRoutes);
 
 app.get('/health', (req, res) => {
   res.json({ status: 'Progress Service OK' });
