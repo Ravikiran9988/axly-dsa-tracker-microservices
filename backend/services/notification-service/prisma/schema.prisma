@@ -1,0 +1,80 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model PracticeUserProgress {
+  id               String    @id @default(uuid())
+  userId           String    @map("user_id")
+  questionId       String    @map("question_id")
+  status           String    @default("unattempted") // 'unattempted', 'attempted', 'solved'
+  attemptCount     Int       @default(0) @map("attempt_count")
+  firstAttemptedAt DateTime? @map("first_attempted_at") @db.Timestamptz
+  solvedAt         DateTime? @map("solved_at") @db.Timestamptz
+  lastAttemptedAt  DateTime? @map("last_attempted_at") @db.Timestamptz
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt        DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@unique([userId, questionId])
+  @@index([userId])
+  @@index([questionId])
+  @@map("practice_user_progress")
+}
+
+model PointsLedger {
+  id         String   @id @default(uuid())
+  userId     String   @map("user_id")
+  sourceType String   @map("source_type") // 'PRACTICE_SOLVE', 'DAILY_CHALLENGE_SOLVE', 'STREAK_REWARD', 'ADMIN_ADJUSTMENT'
+  sourceId   String   @map("source_id")
+  points     Int      @default(0)
+  category   String   // 'practice', 'daily_challenge', 'streak', 'admin'
+  reason     String
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  @@unique([userId, sourceType, sourceId])
+  @@index([userId])
+  @@index([category])
+  @@map("points_ledger")
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  title     String
+  message   String
+  category  String   @default("system") // 'daily_challenge', 'practice', 'submission', 'achievement', 'system'
+  type      String   @default("system_alert")
+  link      String?
+  isRead    Boolean  @default(false) @map("is_read")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  @@index([userId])
+  @@index([isRead])
+  @@index([category])
+  @@index([createdAt(sort: Desc)])
+  @@map("notifications")
+}
+
+model UserStats {
+  userId                     String   @id @map("user_id")
+  points                     Int      @default(0)
+  practicePoints             Int      @default(0) @map("practice_points")
+  dailyChallengePoints       Int      @default(0) @map("daily_challenge_points")
+  streakBonus                Int      @default(0) @map("streak_bonus")
+  leaderboardScore           Int      @default(0) @map("leaderboard_score")
+  individualStreak           Int      @default(0) @map("individual_streak")
+  individualBestStreak       Int      @default(0) @map("individual_best_streak")
+  dailyChallengeStreak       Int      @default(0) @map("daily_challenge_streak")
+  dailyChallengeBestStreak   Int      @default(0) @map("daily_challenge_best_streak")
+  lastDailyChallengeSolveDate DateTime? @db.Date @map("last_daily_challenge_solve_date")
+  streak                     Int      @default(0)
+  longestStreak              Int      @default(0) @map("longest_streak")
+  updatedAt                  DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@index([leaderboardScore(sort: Desc)])
+  @@map("user_stats")
+}
