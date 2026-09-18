@@ -31,3 +31,5 @@ export interface ChallengePublishedEvent {
   questionId: string;
   date: string;
 }
+export * from './logger';
+export * from './middleware';

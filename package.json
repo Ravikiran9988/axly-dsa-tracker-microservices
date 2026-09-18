@@ -1,0 +1,17 @@
+{
+  "name": "axly-dsa-tracker-microservices",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "backend/gateway",
+    "backend/packages/*",
+    "backend/services/*",
+    "frontend"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "start": "npm run start --workspaces --if-present"
+  }
+}
+

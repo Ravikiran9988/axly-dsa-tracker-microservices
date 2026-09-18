@@ -6,6 +6,7 @@ import progressRoutes from './routes';
 import { connectRedis } from './redis';
 import { setupConsumers } from './consumer';
 import { RabbitMQClient } from 'shared';
+import { correlationIdMiddleware, errorHandlerMiddleware } from 'shared';
 
 const app = express();
 const PORT = process.env.PORT || 5007;
@@ -14,12 +15,20 @@ app.use(helmet());
 app.use(cors());
 app.use(morgan('dev'));
 app.use(express.json());
+app.use(correlationIdMiddleware);
 
 app.use('/', progressRoutes);
 
 app.get('/health', (req, res) => {
   res.json({ status: 'Progress Service OK' });
+
 });
+
+app.get('/readiness', (req, res) => {
+  res.json({ status: 'ready' });
+});
+
+app.use(errorHandlerMiddleware);
 
 let server: any = { close: () => {} };
 

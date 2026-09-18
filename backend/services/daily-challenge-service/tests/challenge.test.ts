@@ -3,6 +3,7 @@ import request from 'supertest';
 import { app, server } from '../src/index';
 import prisma from '../src/db';
 import axios from 'axios';
+const mockedAxios = axios as jest.Mocked<typeof axios>;
 
 
 

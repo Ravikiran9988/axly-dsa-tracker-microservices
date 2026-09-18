@@ -1,0 +1,33 @@
+# Frontend Inventory
+
+## Frontend Routes / Views
+- frontend\src\pages\AdminAssignments.jsx
+- frontend\src\pages\AdminAuditLogs.jsx
+- frontend\src\pages\AdminCoreDashboard.jsx
+- frontend\src\pages\AdminDailyChallenge.jsx
+- frontend\src\pages\AdminDashboard.jsx
+- frontend\src\pages\AdminProfile.jsx
+- frontend\src\pages\AdminProgress.jsx
+- frontend\src\pages\AdminQuestions.jsx
+- frontend\src\pages\AdminSettings.jsx
+- frontend\src\pages\AdminSubmissions.jsx
+- frontend\src\pages\AdminSubmissionsReview.jsx
+- frontend\src\pages\AdminUsers.jsx
+- frontend\src\pages\AvailableChallenges.jsx
+- frontend\src\pages\DailyChallenge.jsx
+- frontend\src\pages\ForgotPassword.jsx
+- frontend\src\pages\LandingPage.jsx
+- frontend\src\pages\Leaderboard.jsx
+- frontend\src\pages\Login.jsx
+- frontend\src\pages\NotificationsPage.jsx
+- frontend\src\pages\Practice.jsx
+- frontend\src\pages\ProblemWorkspace.jsx
+- frontend\src\pages\ResetPassword.jsx
+- frontend\src\pages\Signup.jsx
+- frontend\src\pages\StudentAnalytics.jsx
+- frontend\src\pages\StudentProfile.jsx
+- frontend\src\pages\SubmissionHistory.jsx
+- frontend\src\pages\SubmissionReviewConsole.jsx
+- frontend\src\pages\UserDashboard.jsx
+- frontend\src\pages\UserProfile.jsx
+- frontend\src\pages\VerifyEmail.jsx

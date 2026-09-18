@@ -5,6 +5,7 @@ import morgan from 'morgan';
 import challengeRoutes from './routes';
 import { startScheduler } from './scheduler';
 import { RabbitMQClient } from 'shared';
+import { correlationIdMiddleware, errorHandlerMiddleware } from 'shared';
 
 const app = express();
 const PORT = process.env.PORT || 5006;
@@ -13,12 +14,20 @@ app.use(helmet());
 app.use(cors());
 app.use(morgan('dev'));
 app.use(express.json());
+app.use(correlationIdMiddleware);
 
 app.use('/', challengeRoutes);
 
 app.get('/health', (req, res) => {
   res.json({ status: 'Daily Challenge Service OK' });
+
 });
+
+app.get('/readiness', (req, res) => {
+  res.json({ status: 'ready' });
+});
+
+app.use(errorHandlerMiddleware);
 
 let server: any = { close: () => {} };
 const start = async () => {

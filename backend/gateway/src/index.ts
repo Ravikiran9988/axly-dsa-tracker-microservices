@@ -1,3 +1,4 @@
+import { correlationIdMiddleware, errorHandlerMiddleware } from 'shared';
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
@@ -29,7 +30,14 @@ app.use('/api/', apiLimiter);
 
 app.get('/health', (req, res) => {
   res.status(200).json({ status: 'OK', timestamp: new Date().toISOString() });
+
 });
+
+app.get('/readiness', (req, res) => {
+  res.json({ status: 'ready' });
+});
+
+app.use(errorHandlerMiddleware);
 
 const AUTH_SERVICE_URL = process.env.AUTH_SERVICE_URL || 'http://localhost:5001';
 const QUESTION_SERVICE_URL = process.env.QUESTION_SERVICE_URL || 'http://localhost:5002';

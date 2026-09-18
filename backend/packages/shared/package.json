@@ -17,8 +17,11 @@
     "typescript": "^7.0.2"
   },
   "dependencies": {
+    "@types/express": "^5.0.6",
     "amqplib": "^2.0.1",
-    "uuid": "^9.0.1"
+    "express": "^4.19.2",
+    "uuid": "^9.0.1",
+    "winston": "^3.19.0"
   },
   "types": "dist/index.d.ts"
 }
