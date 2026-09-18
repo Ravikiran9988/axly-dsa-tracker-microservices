@@ -7,68 +7,12 @@ generator client {
   provider = "prisma-client-js"
 }
 
-model DailyChallengeProblem {
-  id                 String   @id @default(uuid())
-  title              String
-  slug               String   @unique
-  difficulty         String   // 'easy', 'medium', 'hard'
-  points             Int      @default(100)
-  estimatedTime      Int?     @default(30) @map("estimated_time")
-  topicId            String?  @map("topic_id") // Soft link to Question Service Topic
-  patternId          String?  @map("pattern_id") // Soft link to Question Service Pattern
-  description        String
-  problemStatement   String?  @map("problem_statement")
-  constraints        String?
-  inputFormat        String?  @map("input_format")
-  outputFormat       String?  @map("output_format")
-  exampleInput       String?  @map("example_input")
-  exampleOutput      String?  @map("example_output")
-  hints              Json?    @default("[]")
-  tags               Json?    @default("[]")
-  solutionApproach   String?  @map("solution_approach")
-  editorial          String?
-  complexity         String?
-  examples           Json?    @default("[]")
-  starterCode        String?  @map("starter_code")
-  supportedLanguages Json?    @default("[\"javascript\", \"python\", \"typescript\", \"java\", \"cpp\", \"c\"]") @map("supported_languages")
-  createdVia         String   @default("manual") @map("created_via") // 'manual', 'ai'
-  status             String   @default("draft") // 'draft', 'scheduled', 'published', 'archived'
-  scheduledDate      DateTime? @unique @map("scheduled_date") @db.Date
-  customTopic        String?  @map("custom_topic")
-  createdBy          String?  @map("created_by") // Soft link to Auth Service User
-  isActive           Boolean  @default(true) @map("is_active")
-  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt          DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
-
-  testCases          DailyChallengeTestCase[]
-  dailyQuestions     DailyQuestion[]
-
-  @@index([status])
-  @@index([scheduledDate])
-  @@map("daily_challenge_problems")
-}
-
-model DailyChallengeTestCase {
-  id                 String                @id @default(uuid())
-  challengeId        String                @map("challenge_id")
-  challenge          DailyChallengeProblem @relation(fields: [challengeId], references: [id], onDelete: Cascade)
-  input              String
-  expectedOutput     String                @map("expected_output")
-  isHidden           Boolean               @default(false) @map("is_hidden")
-  createdAt          DateTime              @default(now()) @map("created_at") @db.Timestamptz
-
-  @@index([challengeId])
-  @@map("daily_challenge_test_cases")
-}
-
 model DailyQuestion {
-  id                 String                 @id @default(uuid())
-  questionId         String?                @map("question_id") // Canonical Question ID in Question Service
-  challengeId        String?                @map("challenge_id")
-  challenge          DailyChallengeProblem? @relation(fields: [challengeId], references: [id], onDelete: SetNull)
-  date               DateTime               @unique @db.Date
-  createdBy          String?                @map("created_by")
-  createdAt          DateTime               @default(now()) @map("created_at") @db.Timestamptz
+  id                 String   @id @default(uuid())
+  questionId         String   @map("question_id") // Soft link to Canonical Question in Question Service
+  date               DateTime @unique @db.Date
+  createdBy          String   @map("created_by")  // Soft link to Auth Service User
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz
 
   @@index([date])
   @@map("daily_questions")
